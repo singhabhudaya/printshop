@@ -38,7 +38,7 @@ export default function Header() {
           <div className="relative flex h-16 items-center justify-between">
             {/* Logo */}
             <Link to="/" onClick={closeMenu} className="text-2xl font-bold tracking-tight">
-              Printing<span className="text-indigo-600">Muse</span>
+              Printing<span className="text-[#5A3E36]">Muse</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -49,7 +49,7 @@ export default function Header() {
                   to={link.href}
                   className={({ isActive }) =>
                     `px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                      isActive ? "text-indigo-600 bg-indigo-50" : "text-gray-600 hover:text-indigo-600 hover:bg-gray-100"
+                      isActive ? "text-[#5A3E36] bg-indigo-50" : "text-gray-600 hover:text-[#5A3E36] hover:bg-gray-100"
                     }`
                   }
                 >
