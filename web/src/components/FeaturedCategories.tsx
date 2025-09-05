@@ -4,11 +4,10 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { categoryApi } from "../api/categoryApi";
 import { Category } from "../types";
-import { ImageIcon } from "lucide-react"; // Fallback icon
+import { ImageIcon } from "lucide-react";
 
-// Fallback list (kept for robustness)
+// ---- Fallback list (robust + type-correct) ----
 const FALLBACK: Category[] = [
-    // ... your fallback categories remain the same ...
   { id: "phone-cases",       name: "Phone Cases",       slug: "phone-cases",       image: "/categories/phone-cases.png" },
   { id: "phone-accessories", name: "Phone Accessories", slug: "phone-accessories", image: "/categories/phone-accessories.png" },
   { id: "phone-stands",      name: "Phone Stands",      slug: "phone-stands",      image: "/categories/phone-stands.png" },
@@ -24,16 +23,28 @@ const FALLBACK: Category[] = [
   { id: "custom",            name: "Custom Jobs",       slug: "custom",            image: "/categories/custom.png" },
 ];
 
+// Guard to make unknown API data safe for Category[]
+function isCategory(x: any): x is Category {
+  return (
+    x &&
+    typeof x === "object" &&
+    typeof x.id === "string" &&
+    typeof x.name === "string" &&
+    typeof x.slug === "string"
+  );
+}
+
 const cardVariants = {
   hover: {
     scale: 1.05,
     y: -5,
-    boxShadow: "0 10px 20px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+    boxShadow:
+      "0 10px 20px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
     transition: { type: "spring", stiffness: 300, damping: 20 },
   },
 };
 
-// Sub-component for a single category card
+// A single category card
 const CategoryCard = ({ category }: { category: Category }) => (
   <Link to={`/category/${encodeURIComponent(category.slug)}`}>
     <motion.div
@@ -48,7 +59,7 @@ const CategoryCard = ({ category }: { category: Category }) => (
             alt={category.name}
             className="h-24 w-24 object-contain transition-transform duration-300 group-hover:scale-110"
             loading="lazy"
-            decoding="async" // Helps with browser rendering performance
+            decoding="async"
           />
         ) : (
           <div className="h-24 w-24 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
@@ -63,64 +74,64 @@ const CategoryCard = ({ category }: { category: Category }) => (
   </Link>
 );
 
-// Sub-component for a single skeleton loader
+// Skeleton while loading
 const SkeletonCard = () => (
-    <div className="bg-gray-100 rounded-2xl h-48 animate-pulse p-4 flex flex-col items-center justify-center">
-        <div className="w-24 h-24 bg-gray-200 rounded-full"></div>
-        <div className="h-4 bg-gray-200 rounded w-3/4 mt-4"></div>
-    </div>
-)
+  <div className="bg-gray-100 rounded-2xl h-48 animate-pulse p-4 flex flex-col items-center justify-center">
+    <div className="w-24 h-24 bg-gray-200 rounded-full" />
+    <div className="h-4 bg-gray-200 rounded w-3/4 mt-4" />
+  </div>
+);
 
 export default function FeaturedCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
+    let alive = true;
     const fetchCategories = async () => {
       try {
         const data = await categoryApi.list();
-        if (isMounted) {
-          if (Array.isArray(data) && data.length > 0) {
-            setCategories(data);
-          } else {
-            setCategories(FALLBACK);
-          }
+
+        if (!alive) return;
+
+        // Normalize unknown API results into Category[]
+        if (Array.isArray(data)) {
+          const safe = data.filter(isCategory) as Category[];
+
+          // If some items miss fields (e.g., no slug), fall back gracefully
+          setCategories(safe.length > 0 ? safe : FALLBACK);
+        } else {
+          setCategories(FALLBACK);
         }
-      } catch (error) {
-        console.error("Failed to fetch categories:", error);
-        if (isMounted) {
-          setCategories(FALLBACK); // Use fallback on error
-        }
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+        if (alive) setCategories(FALLBACK);
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (alive) setIsLoading(false);
       }
     };
 
     fetchCategories();
-
-    return () => { isMounted = false; }; // Cleanup function
+    return () => {
+      alive = false;
+    };
   }, []);
-
-  const displayedCategories = isLoading ? Array(10).fill(null) : categories;
 
   return (
     <section id="featured-categories" className="bg-gray-50/70">
       <div className="max-w-6xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
         <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Shop by Category
-            </h2>
-            <p className="mt-4 text-lg text-gray-600">
-              Explore our curated collections of 3D printed wonders.
-            </p>
+          <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            Shop by Category
+          </h2>
+          <p className="mt-4 text-lg text-gray-600">
+            Explore our curated collections of 3D printed wonders.
+          </p>
         </div>
 
         <div className="mt-12 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
           {isLoading
-            ? displayedCategories.map((_, index) => <SkeletonCard key={index} />)
+            ? Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
             : categories.map((c) => <CategoryCard key={c.id} category={c} />)}
         </div>
       </div>
