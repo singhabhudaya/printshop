@@ -2,12 +2,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import type { Variants } from "framer-motion";
 import { categoryApi } from "../api/categoryApi";
 import { Category } from "../types";
 import { ImageIcon } from "lucide-react";
 
-// ---- Fallback list (robust + type-correct) ----
-const FALLBACK: Category[] = [
+// Extend the app's Category type locally (non-breaking)
+type UICategory = Category & { slug: string; image?: string };
+
+// ---- Fallback list (type-safe) ----
+const FALLBACK: UICategory[] = [
   { id: "phone-cases",       name: "Phone Cases",       slug: "phone-cases",       image: "/categories/phone-cases.png" },
   { id: "phone-accessories", name: "Phone Accessories", slug: "phone-accessories", image: "/categories/phone-accessories.png" },
   { id: "phone-stands",      name: "Phone Stands",      slug: "phone-stands",      image: "/categories/phone-stands.png" },
@@ -23,8 +27,8 @@ const FALLBACK: Category[] = [
   { id: "custom",            name: "Custom Jobs",       slug: "custom",            image: "/categories/custom.png" },
 ];
 
-// Guard to make unknown API data safe for Category[]
-function isCategory(x: any): x is Category {
+// Type guard to safely coerce API results to UICategory[]
+function isUICategory(x: any): x is UICategory {
   return (
     x &&
     typeof x === "object" &&
@@ -34,18 +38,18 @@ function isCategory(x: any): x is Category {
   );
 }
 
-const cardVariants = {
+const cardVariants: Variants = {
   hover: {
     scale: 1.05,
     y: -5,
     boxShadow:
       "0 10px 20px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-    transition: { type: "spring", stiffness: 300, damping: 20 },
+    transition: { type: "spring", stiffness: 300, damping: 20 } as const,
   },
 };
 
 // A single category card
-const CategoryCard = ({ category }: { category: Category }) => (
+const CategoryCard = ({ category }: { category: UICategory }) => (
   <Link to={`/category/${encodeURIComponent(category.slug)}`}>
     <motion.div
       variants={cardVariants}
@@ -83,23 +87,21 @@ const SkeletonCard = () => (
 );
 
 export default function FeaturedCategories() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<UICategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
+
     const fetchCategories = async () => {
       try {
         const data = await categoryApi.list();
 
         if (!alive) return;
 
-        // Normalize unknown API results into Category[]
         if (Array.isArray(data)) {
-          const safe = data.filter(isCategory) as Category[];
-
-          // If some items miss fields (e.g., no slug), fall back gracefully
-          setCategories(safe.length > 0 ? safe : FALLBACK);
+          const safe = data.filter(isUICategory);
+          setCategories(safe.length ? safe : FALLBACK);
         } else {
           setCategories(FALLBACK);
         }
