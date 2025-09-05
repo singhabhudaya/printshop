@@ -1,121 +1,219 @@
 // src/components/Header.tsx
 import { useState, useEffect } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";
-import { Menu, X, ShoppingCart } from "lucide-react"; // Icon library
+import { Menu, X, ShoppingCart } from "lucide-react";
 
-const navLinks = [
-  { href: "/category/toys", label: "Toys" },
-  { href: "/category/gadgets", label: "Gadgets" },
-  { href: "/category/cosplay", label: "Cosplay" },
-  { href: "/category/decor", label: "Decor" },
-  { href: "/category/gifts", label: "Gifts" },
+/**
+ * If you want header links to go to Shopify, set VITE_SHOP_ORIGIN in env
+ * (e.g. https://shop.printingmuse.com). If not set, links fall back to
+ * internal routes like /category/toys and /auth/login.
+ */
+const SHOP_BASE = import.meta.env.VITE_SHOP_ORIGIN as string | undefined;
+
+// Brand colors (from your logo)
+const BRAND_BROWN = "#5A3E36";
+const BRAND_BROWN_HOVER = "#4F372F";
+const BRAND_PEACH = "#F1DEC9";
+
+type NavItem = { label: string; handle: string };
+const navItems: NavItem[] = [
+  { handle: "toys", label: "Toys" },
+  { handle: "gadgets", label: "Gadgets" },
+  { handle: "cosplay", label: "Cosplay" },
+  { handle: "decor", label: "Decor" },
+  { handle: "gifts", label: "Gifts" },
 ];
+
+function categoryHref(handle: string) {
+  return SHOP_BASE
+    ? `${SHOP_BASE}/collections/${encodeURIComponent(handle)}`
+    : `/category/${handle}`;
+}
+
+function loginHref() {
+  return SHOP_BASE ? `${SHOP_BASE}/account/login` : `/auth/login`;
+}
+
+function cartHref() {
+  return SHOP_BASE ? `${SHOP_BASE}/cart` : `/cart`;
+}
 
 export default function Header() {
   const { user } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Effect to prevent body scrolling when the mobile menu is open
+  // lock page scroll when mobile menu is open
   useEffect(() => {
-    if (isMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    // Cleanup function to reset on component unmount
+    document.body.style.overflow = isMenuOpen ? "hidden" : "unset";
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = "unset";
     };
   }, [isMenuOpen]);
 
   const closeMenu = () => setIsMenuOpen(false);
 
   return (
-    <>
-      <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-lg">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="relative flex h-16 items-center justify-between">
-            {/* Logo */}
-            <Link to="/" onClick={closeMenu} className="text-2xl font-bold tracking-tight">
-              Printing<span className="text-[#5A3E36]">Muse</span>
-            </Link>
+    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-lg">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="relative flex h-16 items-center justify-between">
+          {/* Logo */}
+          <Link to="/" onClick={closeMenu} className="text-2xl font-bold tracking-tight">
+            <span className="text-gray-900">Printing</span>
+            <span className="ml-0.5" style={{ color: BRAND_BROWN }}>
+              Muse
+            </span>
+          </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex gap-1">
-              {navLinks.map((link) => (
-                <NavLink
-                  key={link.href}
-                  to={link.href}
-                  className={({ isActive }) =>
-                    `px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 ${
-                      isActive ? "text-[#5A3E36] bg-indigo-50" : "text-gray-600 hover:text-[#5A3E36] hover:bg-gray-100"
-                    }`
-                  }
+          {/* Desktop nav */}
+          <nav className="hidden md:flex gap-1">
+            {navItems.map((item) => {
+              const href = categoryHref(item.handle);
+              // Use <a> for external Shopify links; <Link> for internal fallback
+              return SHOP_BASE ? (
+                <a
+                  key={item.handle}
+                  href={href}
+                  className="px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-700 hover:text-white"
+                  style={{ backgroundColor: "transparent" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_PEACH)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  {link.label}
-                </NavLink>
-              ))}
-            </nav>
-
-            {/* Right-side Actions */}
-            <div className="flex items-center gap-4">
-              <Link to="/cart" className="p-2 text-gray-600 rounded-full hover:bg-gray-100 hover:text-gray-900 transition-colors">
-                <ShoppingCart size={20} />
-                <span className="sr-only">Cart</span> {/* For screen readers */}
-              </Link>
-              {user ? (
-                <div className="text-sm font-medium text-gray-700">Hi, {user.name}</div>
+                  <span className="hover:opacity-100" style={{ color: BRAND_BROWN }}>
+                    {item.label}
+                  </span>
+                </a>
               ) : (
-                <Link to="/auth/login" className="hidden sm:inline-block px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 transition-colors">
+                <Link
+                  key={item.handle}
+                  to={href}
+                  className="px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-600 hover:text-white"
+                  style={{ backgroundColor: "transparent" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_PEACH)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  <span style={{ color: BRAND_BROWN }}>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Right-side actions */}
+          <div className="flex items-center gap-4">
+            {SHOP_BASE ? (
+              <a
+                href={cartHref()}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ShoppingCart size={20} />
+                <span className="sr-only">Cart</span>
+              </a>
+            ) : (
+              <Link
+                to={cartHref()}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ShoppingCart size={20} />
+                <span className="sr-only">Cart</span>
+              </Link>
+            )}
+
+            {user ? (
+              <div className="text-sm font-medium text-gray-700">Hi, {user.name}</div>
+            ) : SHOP_BASE ? (
+              <a
+                href={loginHref()}
+                className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-colors"
+                style={{ backgroundColor: BRAND_BROWN }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+              >
+                Login
+              </a>
+            ) : (
+              <Link
+                to={loginHref()}
+                className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-colors"
+                style={{ backgroundColor: BRAND_BROWN }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+              >
+                Login
+              </Link>
+            )}
+
+            {/* Mobile menu button */}
+            <button
+              className="md:hidden p-2 rounded-md"
+              onClick={() => setIsMenuOpen((v) => !v)}
+              aria-label="Open main menu"
+              aria-controls="mobile-menu"
+              aria-expanded={isMenuOpen}
+            >
+              <span className="sr-only">Open menu</span>
+              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {isMenuOpen && (
+        <div id="mobile-menu" className="md:hidden fixed inset-0 top-16 z-40 bg-white px-4 py-6">
+          <nav className="flex flex-col gap-4">
+            {navItems.map((item) => {
+              const href = categoryHref(item.handle);
+              return SHOP_BASE ? (
+                <a
+                  key={item.handle}
+                  href={href}
+                  onClick={closeMenu}
+                  className="px-4 py-3 text-base font-medium rounded-lg"
+                  style={{ backgroundColor: BRAND_PEACH, color: BRAND_BROWN }}
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <Link
+                  key={item.handle}
+                  to={href}
+                  onClick={closeMenu}
+                  className="px-4 py-3 text-base font-medium rounded-lg"
+                  style={{ backgroundColor: BRAND_PEACH, color: BRAND_BROWN }}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+
+            <div className="border-t pt-4 mt-2">
+              {user ? null : SHOP_BASE ? (
+                <a
+                  href={loginHref()}
+                  onClick={closeMenu}
+                  className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white"
+                  style={{ backgroundColor: BRAND_BROWN }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+                >
+                  Login
+                </a>
+              ) : (
+                <Link
+                  to={loginHref()}
+                  onClick={closeMenu}
+                  className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white"
+                  style={{ backgroundColor: BRAND_BROWN }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+                >
                   Login
                 </Link>
               )}
-
-              {/* Mobile Menu Button */}
-              <button
-                className="md:hidden p-2 rounded-md"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                aria-label="Open main menu"
-                aria-controls="mobile-menu"
-                aria-expanded={isMenuOpen}
-              >
-                <span className="sr-only">Open menu</span>
-                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
             </div>
-          </div>
+          </nav>
         </div>
-
-        {/* Mobile Menu Panel */}
-        {isMenuOpen && (
-          <div id="mobile-menu" className="md:hidden fixed inset-0 z-40 top-16 bg-white px-4 py-6">
-            <nav className="flex flex-col gap-4">
-              {navLinks.map((link) => (
-                <NavLink
-                  key={link.href}
-                  to={link.href}
-                  onClick={closeMenu}
-                  className={({ isActive }) =>
-                    `px-4 py-3 text-base font-medium rounded-lg ${
-                      isActive ? "bg-indigo-50 text-indigo-700" : "text-gray-700 hover:bg-gray-100"
-                    }`
-                  }
-                >
-                  {link.label}
-                </NavLink>
-              ))}
-              <div className="border-t pt-4 mt-2">
-                 {user ? null : ( // Only show Login if not logged in
-                   <Link to="/auth/login" onClick={closeMenu} className="block w-full text-center px-4 py-3 rounded-lg bg-indigo-600 text-white font-medium">
-                     Login
-                   </Link>
-                 )}
-              </div>
-            </nav>
-          </div>
-        )}
-      </header>
-    </>
+      )}
+    </header>
   );
 }
