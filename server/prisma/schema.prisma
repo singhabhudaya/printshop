@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  buyer
+  seller
+  admin
+}
+
+model User {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  password   String
+  role       Role     @default(buyer)
+  sellerTier Int?
+  products   Product[]
+  orders     Order[]  @relation("BuyerOrders")
+  jobs       Order[]  @relation("SellerOrders")
+  payouts    Payout[]
+  createdAt  DateTime @default(now())
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  image     String?
+  products  Product[]
+  createdAt DateTime @default(now())
+  slug       String   @unique // For creating friendly URLs
+  isFeatured Boolean  @default(false) // To mark categories for the homepage
+}
+
+model Product {
+  id         String    @id @default(cuid())
+  title      String
+  price      Float
+  stlFile    String?
+  images     Json
+  seller     User      @relation(fields: [sellerId], references: [id])
+  sellerId   String
+  category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  orders     Order[]   // <-- back relation for Order.product
+  createdAt  DateTime  @default(now())
+}
+
+enum OrderStatus {
+  created
+  assigned
+  in_progress
+  completed
+  cancelled
+}
+
+enum PaymentStatus {
+  pending
+  authorized
+  captured
+  refunded
+  failed
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  product       Product       @relation(fields: [productId], references: [id])
+  productId     String
+  buyer         User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  buyerId       String
+  seller        User?         @relation("SellerOrders", fields: [sellerId], references: [id])
+  sellerId      String?
+  status        OrderStatus   @default(created)
+  paymentStatus PaymentStatus @default(pending)
+  amount        Float
+  createdAt     DateTime      @default(now())
+}
+
+model Payout {
+  id        String   @id @default(cuid())
+  seller    User     @relation(fields: [sellerId], references: [id])
+  sellerId  String
+  amount    Float
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+}
