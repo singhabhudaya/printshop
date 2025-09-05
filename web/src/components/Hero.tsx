@@ -8,29 +8,11 @@ import "swiper/css";
 import "swiper/css/pagination";
 import "swiper/css/navigation";
 
-// Move slide data outside the component
 const slides = [
-  {
-    title: "Skeleton Cases",
-    subtitle:
-      "From Skeleton cases, Magsafe charging pods, to fun gadgets—made in India",
-    image: "/banners/hero-1.jpg",
-  },
-  {
-    title: "Smart Products",
-    subtitle: "Product shown above is a handbuilt Dasai Mochi robot",
-    image: "/banners/hero-2.jpg",
-  },
-  {
-    title: "Trending This Week",
-    subtitle: "Miniatures, decor & everyday hacks",
-    image: "/banners/hero-3.jpg",
-  },
-  {
-    title: "Watch Stands",
-    subtitle: "Your Watch, But on a Pedestal",
-    image: "/banners/hero-4.jpg",
-  },
+  { title: "Skeleton Cases", subtitle: "From Skeleton cases, Magsafe charging pods, to fun gadgets—made in India", image: "/banners/hero-1.jpg" },
+  { title: "Smart Products", subtitle: "Product shown above is a handbuilt Dasai Mochi robot", image: "/banners/hero-2.jpg" },
+  { title: "Trending This Week", subtitle: "Miniatures, decor & everyday hacks", image: "/banners/hero-3.jpg" },
+  { title: "Watch Stands", subtitle: "Your Watch, But on a Pedestal", image: "/banners/hero-4.jpg" },
 ];
 
 const textVariants = {
@@ -47,7 +29,6 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
 };
 
-// Swiper nav buttons
 const SwiperNavButtons = () => {
   const swiper = useSwiper();
   return (
@@ -80,7 +61,7 @@ export default function Hero() {
 
   return (
     <>
-      {/* Replace styled-jsx with a plain <style> tag (React supports this) */}
+      {/* Replace styled-jsx with a plain <style> tag */}
       <style>{`
         .hero-swiper .swiper-pagination-bullet {
           width: 10px;
@@ -95,9 +76,6 @@ export default function Hero() {
         }
       `}</style>
 
-      {/* For PRODUCTION: consider preloading the first hero image in index.html head:
-          <link rel="preload" as="image" href="/banners/hero-1.jpg" />
-      */}
       <section className="relative w-full group/swiper">
         <Swiper
           modules={[Autoplay, Pagination, Navigation]}
@@ -125,25 +103,16 @@ export default function Hero() {
                     animate={isActive ? "visible" : "hidden"}
                   >
                     {i === 0 ? (
-                      <motion.h1
-                        variants={itemVariants}
-                        className="text-4xl md:text-6xl font-bold tracking-tight"
-                      >
+                      <motion.h1 variants={itemVariants} className="text-4xl md:text-6xl font-bold tracking-tight">
                         {s.title}
                       </motion.h1>
                     ) : (
-                      <motion.h2
-                        variants={itemVariants}
-                        className="text-4xl md:text-6xl font-bold tracking-tight"
-                      >
+                      <motion.h2 variants={itemVariants} className="text-4xl md:text-6xl font-bold tracking-tight">
                         {s.title}
                       </motion.h2>
                     )}
 
-                    <motion.p
-                      variants={itemVariants}
-                      className="mt-3 md:mt-4 text-base md:text-lg max-w-lg opacity-90"
-                    >
+                    <motion.p variants={itemVariants} className="mt-3 md:mt-4 text-base md:text-lg max-w-lg opacity-90">
                       {s.subtitle}
                     </motion.p>
 
