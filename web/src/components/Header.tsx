@@ -38,7 +38,7 @@ export default function Header() {
           <div className="relative flex h-16 items-center justify-between">
             {/* Logo */}
             <Link to="/" onClick={closeMenu} className="text-2xl font-bold tracking-tight">
-              Creator<span className="text-indigo-600">Market</span>
+              Printing<span className="text-indigo-600">Muse</span>
             </Link>
 
             {/* Desktop Navigation */}
