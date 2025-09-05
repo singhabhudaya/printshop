@@ -5,16 +5,15 @@ import { useAuth } from "../state/AuthContext";
 import { Menu, X, ShoppingCart } from "lucide-react";
 
 /**
- * If you want header links to go to Shopify, set VITE_SHOP_ORIGIN in env
- * (e.g. https://shop.printingmuse.com). If not set, links fall back to
- * internal routes like /category/toys and /auth/login.
+ * If you want header links to go to Shopify, set VITE_SHOP_ORIGIN
+ * (e.g. https://shop.printingmuse.com). Otherwise internal routes are used.
  */
 const SHOP_BASE = import.meta.env.VITE_SHOP_ORIGIN as string | undefined;
 
-// Brand colors (from your logo)
-const BRAND_BROWN = "#5A3E36";
-const BRAND_BROWN_HOVER = "#4F372F";
-const BRAND_PEACH = "#F1DEC9";
+// Warm peach/gold palette
+const BRAND_GOLD = "#C8A37A";
+const BRAND_GOLD_DARK = "#B38960";
+const BRAND_PEACH = "#F2E5D9";
 
 type NavItem = { label: string; handle: string };
 const navItems: NavItem[] = [
@@ -30,11 +29,9 @@ function categoryHref(handle: string) {
     ? `${SHOP_BASE}/collections/${encodeURIComponent(handle)}`
     : `/category/${handle}`;
 }
-
 function loginHref() {
   return SHOP_BASE ? `${SHOP_BASE}/account/login` : `/auth/login`;
 }
-
 function cartHref() {
   return SHOP_BASE ? `${SHOP_BASE}/cart` : `/cart`;
 }
@@ -46,12 +43,15 @@ export default function Header() {
   // lock page scroll when mobile menu is open
   useEffect(() => {
     document.body.style.overflow = isMenuOpen ? "hidden" : "unset";
-    return () => {
-      document.body.style.overflow = "unset";
-    };
+    return () => { document.body.style.overflow = "unset"; };
   }, [isMenuOpen]);
 
   const closeMenu = () => setIsMenuOpen(false);
+
+  // shared classes for nav items (peach hover + gold text)
+  const navItemClasses =
+    "px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 " +
+    "text-gray-700 hover:text-[#B38960] hover:bg-[#F2E5D9]";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-lg">
@@ -60,39 +60,20 @@ export default function Header() {
           {/* Logo */}
           <Link to="/" onClick={closeMenu} className="text-2xl font-bold tracking-tight">
             <span className="text-gray-900">Printing</span>
-            <span className="ml-0.5" style={{ color: BRAND_BROWN }}>
-              Muse
-            </span>
+            <span className="ml-0.5 text-[#C8A37A]">Muse</span>
           </Link>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex gap-1">
             {navItems.map((item) => {
               const href = categoryHref(item.handle);
-              // Use <a> for external Shopify links; <Link> for internal fallback
               return SHOP_BASE ? (
-                <a
-                  key={item.handle}
-                  href={href}
-                  className="px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-700 hover:text-white"
-                  style={{ backgroundColor: "transparent" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_PEACH)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <span className="hover:opacity-100" style={{ color: BRAND_BROWN }}>
-                    {item.label}
-                  </span>
+                <a key={item.handle} href={href} className={navItemClasses}>
+                  {item.label}
                 </a>
               ) : (
-                <Link
-                  key={item.handle}
-                  to={href}
-                  className="px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-600 hover:text-white"
-                  style={{ backgroundColor: "transparent" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_PEACH)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <span style={{ color: BRAND_BROWN }}>{item.label}</span>
+                <Link key={item.handle} to={href} className={navItemClasses}>
+                  {item.label}
                 </Link>
               );
             })}
@@ -103,7 +84,7 @@ export default function Header() {
             {SHOP_BASE ? (
               <a
                 href={cartHref()}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-[#B38960] transition-colors"
               >
                 <ShoppingCart size={20} />
                 <span className="sr-only">Cart</span>
@@ -111,7 +92,7 @@ export default function Header() {
             ) : (
               <Link
                 to={cartHref()}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-gray-900 transition-colors"
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-[#B38960] transition-colors"
               >
                 <ShoppingCart size={20} />
                 <span className="sr-only">Cart</span>
@@ -124,9 +105,9 @@ export default function Header() {
               <a
                 href={loginHref()}
                 className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-colors"
-                style={{ backgroundColor: BRAND_BROWN }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+                style={{ backgroundColor: BRAND_GOLD }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD_DARK)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD)}
               >
                 Login
               </a>
@@ -134,9 +115,9 @@ export default function Header() {
               <Link
                 to={loginHref()}
                 className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-colors"
-                style={{ backgroundColor: BRAND_BROWN }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+                style={{ backgroundColor: BRAND_GOLD }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD_DARK)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD)}
               >
                 Login
               </Link>
@@ -169,7 +150,7 @@ export default function Header() {
                   href={href}
                   onClick={closeMenu}
                   className="px-4 py-3 text-base font-medium rounded-lg"
-                  style={{ backgroundColor: BRAND_PEACH, color: BRAND_BROWN }}
+                  style={{ backgroundColor: BRAND_PEACH, color: BRAND_GOLD_DARK }}
                 >
                   {item.label}
                 </a>
@@ -179,7 +160,7 @@ export default function Header() {
                   to={href}
                   onClick={closeMenu}
                   className="px-4 py-3 text-base font-medium rounded-lg"
-                  style={{ backgroundColor: BRAND_PEACH, color: BRAND_BROWN }}
+                  style={{ backgroundColor: BRAND_PEACH, color: BRAND_GOLD_DARK }}
                 >
                   {item.label}
                 </Link>
@@ -192,9 +173,9 @@ export default function Header() {
                   href={loginHref()}
                   onClick={closeMenu}
                   className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white"
-                  style={{ backgroundColor: BRAND_BROWN }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+                  style={{ backgroundColor: BRAND_GOLD }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD_DARK)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD)}
                 >
                   Login
                 </a>
@@ -203,9 +184,9 @@ export default function Header() {
                   to={loginHref()}
                   onClick={closeMenu}
                   className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white"
-                  style={{ backgroundColor: BRAND_BROWN }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN_HOVER)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_BROWN)}
+                  style={{ backgroundColor: BRAND_GOLD }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD_DARK)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = BRAND_GOLD)}
                 >
                   Login
                 </Link>
