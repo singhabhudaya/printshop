@@ -12,7 +12,7 @@ const shopLinks = [
 const companyLinks = [
   { href: "/about", label: "About Us" },
   { href: "/blog", label: "Blog" },
-  { href: "/sell-with-us", label: "Sell on CreatorMarket" },
+  { href: "/sell-with-us", label: "Sell on PrintingMuse" },
   { href: "/careers", label: "Careers" },
 ];
 
@@ -36,11 +36,8 @@ export default function Footer() {
           {/* Logo and Tagline section */}
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="text-xl font-bold tracking-tight">
-              Creator<span className="text-indigo-600">Market</span>
+              Printing<span className="text-indigo-600">Muse</span>
             </Link>
-            <p className="mt-2 text-sm text-gray-500">
-              India's premier marketplace for creators and makers.
-            </p>
             <div className="mt-4 flex space-x-4">
                 {socialLinks.map((social) => (
                     <a key={social.label} href={social.href} className="text-gray-400 hover:text-gray-500">
@@ -93,7 +90,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 border-t border-gray-200 pt-8">
           <p className="text-base text-gray-400 text-center">
-            &copy; {new Date().getFullYear()} CreatorMarket. Made with ❤️ in India.
+            &copy; {new Date().getFullYear()} Printing Muse. Made with ❤️ in India.
           </p>
         </div>
       </div>
