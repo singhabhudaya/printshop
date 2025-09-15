@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Supabase Postgres:
+  // - DATABASE_URL  → pooled (Transaction/Session pooler: add ?pgbouncer=true&sslmode=require)
+  // - DIRECT_URL    → direct connection (db.<project-ref>.supabase.co)
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  buyer
+  seller
+  admin
+}
+
+enum OrderStatus {
+  created
+  confirmed
+  shipped
+  delivered
+  cancelled
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String?
+  role         Role     @default(buyer)
+  sellerTier   Int?     @default(0)
+
+  // relations
+  products Product[]
+  orders   Order[]     @relation("BuyerOrders")
+  payouts  Payout[]
+
+  createdAt DateTime   @default(now())
+
+  @@index([role])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  image     String?
+  products  Product[]
+
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  // Use Decimal for currency; stored as NUMERIC(10,2) in Postgres
+  price       Decimal   @db.Decimal(10, 2)
+  // Prisma Json maps to Postgres jsonb
+  images      Json?
+
+  // relations
+  seller     User      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerId   String
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+
+  createdAt  DateTime  @default(now())
+
+  @@index([sellerId])
+  @@index([categoryId])
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  buyer         User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  buyerId       String
+  items         Json          // snapshot of items at purchase time
+  status        OrderStatus   @default(created)
+  paymentStatus PaymentStatus @default(pending)
+  // Monetary amounts as Decimal
+  amount        Decimal       @db.Decimal(10, 2)
+  createdAt     DateTime      @default(now())
+
+  @@index([buyerId])
+  @@index([status])
+  @@index([paymentStatus])
+}
+
+model Payout {
+  id        String   @id @default(cuid())
+  seller    User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerId  String
+  amount    Decimal  @db.Decimal(10, 2)
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  @@index([sellerId])
+}

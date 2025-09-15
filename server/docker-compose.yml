@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: printing-muse-api
+    ports:
+      - "${PORT:-4000}:4000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Supabase is external, so no DB container here
+    volumes:
+      - ./prisma:/app/prisma
+      - ./uploads:/app/uploads
+    command: ["node", "dist/index.js"]
