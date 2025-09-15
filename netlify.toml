@@ -1,0 +1,13 @@
+[build]
+  # Point to your frontend folder
+  base = "web"
+  command = "npm install && npm run build"
+  publish = "dist"   # or "build", ".next", etc. depending on your framework
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200

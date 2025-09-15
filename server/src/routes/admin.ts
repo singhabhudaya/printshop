@@ -1,11 +1,19 @@
+<<<<<<< HEAD
 import { Router } from "express";
 import { PrismaClient, OrderStatus, PaymentStatus, Role } from "@prisma/client";
 import { z } from "zod";
 import { auth, requireRole } from "../middleware/auth.js";
+=======
+
+import { Router } from "express";
+import { PrismaClient } from "@prisma/client";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+>>>>>>> 4fc21c4de22ed271266fd8959f0f68c8ce9ab743
 
 const prisma = new PrismaClient();
 const router = Router();
 
+<<<<<<< HEAD
 /** --------- helpers --------- */
 function paginate(query: any) {
   const page = Math.max(1, Number(query.page ?? 1));
@@ -158,6 +166,16 @@ router.put("/payouts/:id", auth, requireRole("admin"), async (req, res) => {
   } catch {
     res.status(404).json({ error: "Payout not found" });
   }
+=======
+router.get("/sellers", requireAuth, requireRole("admin"), async (_req, res) => {
+  const sellers = await prisma.user.findMany({ where: { role: "seller" }, orderBy: { createdAt: "desc" } });
+  res.json(sellers.map(s => ({ ...s, password: undefined })));
+});
+
+router.get("/orders", requireAuth, requireRole("admin"), async (_req, res) => {
+  const orders = await prisma.order.findMany({ orderBy: { createdAt: "desc" } });
+  res.json(orders);
+>>>>>>> 4fc21c4de22ed271266fd8959f0f68c8ce9ab743
 });
 
 export default router;
