@@ -111,27 +111,26 @@ async function fetchAllProductsForCollection(handle: string, pageSize = 250) {
       }
     }
   `;
-  type T = {
-    collectionByHandle: null | {
-      products: {
-        edges: Array<{ cursor: string; node: any }>;
-        pageInfo: { hasNextPage: boolean; endCursor: string | null };
-      };
-    };
-  };
+
+  // Narrowed types for pagination
+  type Edge = { cursor: string; node: any };
+  type ProductsPage = { edges: Edge[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+  type T = { collectionByHandle: null | { products: ProductsPage } };
 
   const products: any[] = [];
   let cursor: string | null = null;
   let hasNext = true;
 
   while (hasNext) {
-    const data = await shopifyGql<T>(q, { handle, first: pageSize, cursor });
-    const list = data.collectionByHandle?.products;
+    const data: T = await shopifyGql<T>(q, { handle, first: pageSize, cursor });
+    const list: ProductsPage | undefined = data.collectionByHandle?.products;
     if (!list) break;
-    products.push(...list.edges.map((e) => e.node));
+
+    products.push(...list.edges.map((e: Edge) => e.node));
     hasNext = list.pageInfo.hasNextPage;
     cursor = list.pageInfo.endCursor;
   }
+
   return products;
 }
 
@@ -284,10 +283,7 @@ function CategoryWithProducts({ category }: { category: UICategory }) {
             <style>{`.snap-x::-webkit-scrollbar{ display:none }`}</style>
 
             {items.map((p: UIProduct) => (
-              <div
-                key={p.id}
-                className="snap-start flex-none w-[33.333%] max-w-[420px]"
-              >
+              <div key={p.id} className="snap-start flex-none w-[33.333%] max-w-[420px]">
                 <ProductCard p={p} />
               </div>
             ))}
