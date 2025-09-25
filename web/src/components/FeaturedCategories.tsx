@@ -1,68 +1,47 @@
 // /web/src/components/FeaturedCategories.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import type { Variants } from "framer-motion";
-import { categoryApi } from "../api/categoryApi";
-import type { Category } from "../types";
+import { motion, type Variants } from "framer-motion";
 import { ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 
-/** ---------------- Types ---------------- */
+/** ---------- Types (UI) ---------- */
 type UIImage = { src: string; alt?: string };
-type UICategory = Category & {
-  // Derived UI fields
-  slug: string;           // Shopify handle-ish
-  images?: UIImage[];     // optional if you later add multiple images/category
+type UICategory = {
+  id: string;
+  name: string;
+  slug: string;
+  image?: string;
+  __products?: UIProduct[];
+};
+type UIProduct = {
+  id: string;
+  name: string;
+  image?: string;
+  handle?: string;
+  price: number;
+  compareAtPrice?: number;
 };
 
-/** ---------------- ENV / Config ----------------
- * Set this in /web/.env (Vite):
- *   VITE_SHOPIFY_STORE_URL="https://yourstore.myshopify.com"  // or https://shop.yourdomain.com
- * We build links like: `${VITE_SHOPIFY_STORE_URL}/collections/<handle>`
- */
-const SHOPIFY_BASE =
-  (import.meta as any).env?.VITE_SHOPIFY_STORE_URL?.replace(/\/$/, "") ||
-  "https://printingmuse.myshopify.com/"; // TODO: set real store domain
+/** ---------- ENV ---------- */
+const RAW_BASE =
+  (import.meta as any).env?.VITE_SHOPIFY_STORE_URL || "https://printingmuse.myshopify.com";
+const SHOPIFY_BASE = String(RAW_BASE).replace(/\/$/, "");
+const STOREFRONT_TOKEN = (import.meta as any).env?.VITE_SHOPIFY_STOREFRONT_TOKEN || "";
+const USING_SHOPIFY = !!STOREFRONT_TOKEN;
 
-/** If any category slug/handle differs in Shopify, override it here */
-const SHOPIFY_HANDLE_OVERRIDES: Record<string, string> = {
-  // "gifts-for-him": "gifts-him-2025",
-  // "phone-accessories": "accessories-phone",
-};
+/** ---------- Dynamic settings ---------- */
+const MAX_COLLECTIONS = 8; // how many collections to show
+const EXCLUDE_HANDLES = new Set<string>([
+  "frontpage", // Shopify's default collection
+]);
 
-/** ---------------- Helpers ---------------- */
-function toSlug(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function isCategory(x: unknown): x is Category {
-  const y = x as Partial<Category>;
-  return !!y && typeof y === "object" && typeof y.id === "string" && typeof y.name === "string";
-}
-
-function toUICategory(c: Category): UICategory {
-  // Prefer id (your ids already look handle-like in your fallback),
-  // else derive from name.
-  const baseSlug = c.id?.trim() ? toSlug(c.id) : toSlug(c.name);
-  return { ...c, slug: baseSlug };
-}
-
-function shopifyCollectionUrl(slugOrName: string): string {
+/** ---------- Helpers ---------- */
+const toSlug = (s: string) =>
+  s.toLowerCase().trim().replace(/[^\p{Letter}\p{Number}]+/gu, "-").replace(/^-+|-+$/g, "");
+function shopifyCollectionUrl(slugOrName: string) {
   const slug = toSlug(slugOrName);
-  const handle = SHOPIFY_HANDLE_OVERRIDES[slug] ?? slug;
-  return `${SHOPIFY_BASE}/collections/${encodeURIComponent(handle)}`;
+  return `${SHOPIFY_BASE}/collections/${encodeURIComponent(slug)}`;
 }
-
-/** Make a list of images to render per category.
- * If you only have a single `image`, we duplicate it so the rail still scrolls.
- */
 function toImages(cat: UICategory): UIImage[] {
-  if (Array.isArray(cat.images) && cat.images.length) {
-    return cat.images.filter((im): im is UIImage => !!im?.src);
-  }
   if (cat.image) {
     const base = { src: cat.image, alt: cat.name };
     return [0, 1, 2, 3].map((i) => ({ ...base, src: `${base.src}?v=${i}` }));
@@ -70,36 +49,184 @@ function toImages(cat: UICategory): UIImage[] {
   return [];
 }
 
-/** ---------------- Motion ---------------- */
+/** ---------- Motion ---------- */
 const tileVariants: Variants = {
-  hover: {
-    scale: 1.03,
-    transition: { type: "spring", stiffness: 260, damping: 20 },
-  },
+  hover: { scale: 1.03, transition: { type: "spring", stiffness: 260, damping: 20 } },
 };
 
-/** ---------------- Fallback (non-breaking) ---------------- */
-const FALLBACK_BASE: Array<Omit<UICategory, "images">> = [
-  { id: "phone-cases",       name: "Phone Cases",       slug: "phone-cases",       image: "/categories/phone-cases.png" },
-  { id: "phone-accessories", name: "Phone Accessories", slug: "phone-accessories", image: "/categories/phone-accessories.png" },
-  { id: "phone-stands",      name: "Phone Stands",      slug: "phone-stands",      image: "/categories/phone-stands.png" },
-  { id: "keychains",         name: "Keychains",         slug: "keychains",         image: "/categories/keychains.png" },
-  { id: "functional-toys",   name: "Functional Toys",   slug: "functional-toys",   image: "/categories/functional-toys.png" },
-  { id: "smart-products",    name: "Smart Products",    slug: "smart-products",    image: "/categories/smart-products.png" },
-  { id: "cool-gadgets",      name: "Cool Gadgets",      slug: "cool-gadgets",      image: "/categories/cool-gadgets.png" },
-  { id: "dioramas",          name: "Dioramas",          slug: "dioramas",          image: "/categories/dioramas.png" },
-  { id: "everyday-products", name: "Everyday Products", slug: "everyday-products", image: "/categories/everyday-products.png" },
-  { id: "gifts-for-him",     name: "Gifts for Him",     slug: "gifts-for-him",     image: "/categories/gifts-for-him.png" },
-  { id: "gifts-for-her",     name: "Gifts for Her",     slug: "gifts-for-her",     image: "/categories/gifts-for-her.png" },
-  { id: "accessories",       name: "Accessories",       slug: "accessories",       image: "/categories/accessories.png" },
-  { id: "custom",            name: "Custom Jobs",       slug: "custom",            image: "/categories/custom.png" },
-];
+/** ---------- Minimal Storefront client ---------- */
+const SHOPIFY_GRAPHQL = USING_SHOPIFY
+  ? `${SHOPIFY_BASE.replace(/^https?:\/\//, "https://")}/api/2024-07/graphql.json`
+  : "";
 
-/** ---------------- One category rail ---------------- */
-function CategoryRail({ category }: { category: UICategory }) {
+async function shopifyGql<T>(query: string, variables?: Record<string, any>): Promise<T> {
+  const res = await fetch(SHOPIFY_GRAPHQL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Storefront-Access-Token": STOREFRONT_TOKEN,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(json.errors.map((e: any) => e.message).join("; "));
+  return json.data as T;
+}
+
+/** ---------- Collections + ALL products (paginated) ---------- */
+
+// 1) fetch only the collections (fast)
+async function fetchCollectionsOnly(limitCollections: number) {
+  const q = /* GraphQL */ `
+    query Collections($first: Int!) {
+      collections(first: $first, sortKey: UPDATED_AT) {
+        edges { node { id title handle image { url altText } } }
+      }
+    }
+  `;
+  type T = { collections: { edges: Array<{ node: any }> } };
+  const data = await shopifyGql<T>(q, { first: limitCollections });
+  return data.collections.edges.map((e) => e.node);
+}
+
+// 2) fetch *all* products for one collection via cursor pagination
+async function fetchAllProductsForCollection(handle: string, pageSize = 250) {
+  const q = /* GraphQL */ `
+    query CollectionProducts($handle: String!, $first: Int!, $cursor: String) {
+      collectionByHandle(handle: $handle) {
+        products(first: $first, after: $cursor) {
+          edges {
+            cursor
+            node {
+              id
+              handle
+              title
+              featuredImage { url altText }
+              priceRange { minVariantPrice { amount currencyCode } }
+              compareAtPriceRange { minVariantPrice { amount currencyCode } }
+            }
+          }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  `;
+  type T = {
+    collectionByHandle: null | {
+      products: {
+        edges: Array<{ cursor: string; node: any }>;
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+      };
+    };
+  };
+
+  const products: any[] = [];
+  let cursor: string | null = null;
+  let hasNext = true;
+
+  while (hasNext) {
+    const data = await shopifyGql<T>(q, { handle, first: pageSize, cursor });
+    const list = data.collectionByHandle?.products;
+    if (!list) break;
+    products.push(...list.edges.map((e) => e.node));
+    hasNext = list.pageInfo.hasNextPage;
+    cursor = list.pageInfo.endCursor;
+  }
+  return products;
+}
+
+function toUIProductFromShopify(node: any): UIProduct {
+  const price = Number(node?.priceRange?.minVariantPrice?.amount ?? 0);
+  const compareAt = Number(node?.compareAtPriceRange?.minVariantPrice?.amount ?? 0) || undefined;
+  return {
+    id: node.id,
+    name: node.title,
+    image: node.featuredImage?.url,
+    handle: node.handle,
+    price,
+    compareAtPrice: compareAt,
+  };
+}
+
+/** ---------- Product Card ---------- */
+function ProductCard({ p }: { p: UIProduct }) {
+  const onSale = !!(p.compareAtPrice && p.compareAtPrice > p.price);
+  const href = p.handle ? `${SHOPIFY_BASE}/products/${encodeURIComponent(p.handle)}` : `/product/${p.id}`;
+  return (
+    <a
+      className="group rounded-2xl bg-white/70 hover:bg-white transition shadow-sm hover:shadow-md border border-black/5 overflow-hidden"
+      href={href}
+    >
+      <div className="relative aspect-[4/5] overflow-hidden">
+        <img
+          loading="lazy"
+          src={p.image ?? "/placeholder.png"}
+          alt={p.name}
+          className="w-full h-full object-cover group-hover:scale-[1.02] transition"
+        />
+        {onSale && (
+          <span className="absolute left-3 bottom-3 px-2 py-1 text-xs rounded-full bg-black/80 text-white">
+            Sale
+          </span>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="text-xs sm:text-sm font-medium line-clamp-2">{p.name}</div>
+        <div className="mt-1 flex items-center gap-1.5 sm:gap-2">
+          <span className="font-semibold text-sm sm:text-base">
+            ₹ {Number(p.price ?? 0).toLocaleString("en-IN")}
+          </span>
+          {onSale && (
+            <span className="text-xs sm:text-sm text-black/50 line-through">
+              ₹ {Number(p.compareAtPrice ?? 0).toLocaleString("en-IN")}
+            </span>
+          )}
+        </div>
+      </div>
+    </a>
+  );
+}
+
+/** ---------- Fallback tile (if a collection has 0 products) ---------- */
+function OldCarouselFallback({ category }: { category: UICategory }) {
   const images = useMemo(() => toImages(category), [category]);
-  const railRef = useRef<HTMLDivElement | null>(null);
+  const href = shopifyCollectionUrl(category.slug || category.name);
+  if (!images.length) {
+    return (
+      <a
+        href={href}
+        className="relative rounded-2xl overflow-hidden bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 h-64"
+      >
+        <ImageIcon className="w-14 h-14" />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={href}
+      className="relative rounded-2xl overflow-hidden bg-gray-100 h-64 shadow-sm border border-black/5"
+    >
+      <motion.div variants={tileVariants} whileHover="hover" className="w-full h-full">
+        <img
+          src={images[0].src}
+          alt={images[0].alt ?? category.name}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 to-black/25" />
+      </motion.div>
+    </a>
+  );
+}
 
+/** ---------- Category section (grid ≤3, swipe >3) ---------- */
+function CategoryWithProducts({ category }: { category: UICategory }) {
+  const items = category.__products ?? [];
+  const collectionHref = shopifyCollectionUrl(category.slug || category.name);
+
+  // swipe rail when more than 3
+  const railRef = useRef<HTMLDivElement | null>(null);
   const scrollByAmount = (dir: "left" | "right") => {
     const el = railRef.current;
     if (!el) return;
@@ -107,118 +234,74 @@ function CategoryRail({ category }: { category: UICategory }) {
     el.scrollBy({ left: dir === "right" ? step : -step, behavior: "smooth" });
   };
 
-  const href = shopifyCollectionUrl(category.slug || category.name);
+  const moreThanThree = items.length > 3;
 
   return (
-    <section className="mb-8 sm:mb-10" aria-label={`${category.name} carousel`}>
+    <section className="mb-8 sm:mb-10" aria-label={`${category.name} products`}>
       <div className="px-4 sm:px-0 flex items-baseline justify-between">
         <h3 className="text-xl sm:text-2xl font-bold text-gray-900">{category.name}</h3>
-
-        {/* External Shopify link (not <Link/>) */}
-        <a
-          href={href}
-          className="text-sm text-blue-600 hover:text-blue-700"
-          aria-label={`Open ${category.name} on Shopify`}
-        >
+        <a href={collectionHref} className="text-sm text-blue-600 hover:text-blue-700">
           View all
         </a>
       </div>
 
-      <div className="relative mt-3 group">
-        {/* desktop nav buttons */}
-        <button
-          onClick={() => scrollByAmount("left")}
-          aria-label="Scroll left"
-          className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/5 hover:bg-white"
-        >
-          <ChevronLeft className="h-5 w-5 text-gray-700" />
-        </button>
-        <button
-          onClick={() => scrollByAmount("right")}
-          aria-label="Scroll right"
-          className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/5 hover:bg-white"
-        >
-          <ChevronRight className="h-5 w-5 text-gray-700" />
-        </button>
-
-        {/* horizontal rail */}
-        <div
-          ref={railRef}
-          className="
-            flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-p-4 px-4 -mx-4 pb-2
-            [scrollbar-width:none] [-ms-overflow-style:none]
-          "
-          style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
-        >
-          {/* Hide scrollbar (WebKit) */}
-          <style>{`.snap-x::-webkit-scrollbar{ display:none }`}</style>
-
-          {images.length ? (
-            images.map((img, idx) => (
-              <a
-                href={href}
-                key={idx}
-                className="
-                  relative shrink-0 snap-center
-                  rounded-2xl overflow-hidden
-                  min-w-[85vw] h-[52vw] max-w-[520px] max-h-[360px]
-                  bg-gray-100
-                "
-                aria-label={`Open ${category.name} on Shopify`}
-              >
-                <motion.div variants={tileVariants} whileHover="hover" className="w-full h-full">
-                  <img
-                    src={img.src}
-                    alt={img.alt ?? category.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover transform-gpu transition-transform duration-300 group-hover:scale-[1.02]"
-                  />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 to-black/25" />
-                </motion.div>
-              </a>
-            ))
+      {/* <= 3: normal grid; > 3: horizontal swipe rail with 2/3 visible */}
+      {!moreThanThree ? (
+        <div className="mt-4 grid grid-cols-3 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4 px-4 sm:px-0">
+          {items.length > 0 ? (
+            items.map((p) => <ProductCard key={p.id} p={p} />)
           ) : (
-            <a
-              href={href}
-              className="
-                relative shrink-0 snap-center
-                rounded-2xl overflow-hidden
-                min-w-[85vw] h-[52vw] max-w-[520px] max-h-[360px]
-                bg-gray-50 border border-gray-200 flex items-center justify-center
-                text-gray-400
-              "
-              aria-label={`Open ${category.name} on Shopify`}
-            >
-              <ImageIcon className="w-14 h-14" />
-            </a>
+            <OldCarouselFallback category={category} />
           )}
         </div>
-      </div>
-    </section>
-  );
-}
+      ) : (
+        <div className="relative mt-4 group">
+          {/* desktop nav buttons */}
+          <button
+            onClick={() => scrollByAmount("left")}
+            aria-label="Scroll left"
+            className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/5 hover:bg-white"
+          >
+            <ChevronLeft className="h-5 w-5 text-gray-700" />
+          </button>
+          <button
+            onClick={() => scrollByAmount("right")}
+            aria-label="Scroll right"
+            className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow ring-1 ring-black/5 hover:bg-white"
+          >
+            <ChevronRight className="h-5 w-5 text-gray-700" />
+          </button>
 
-/** ---------------- Skeletons ---------------- */
-function SkeletonRail() {
-  return (
-    <section className="mb-8 sm:mb-10">
-      <div className="px-4 sm:px-0">
-        <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-3" />
-      </div>
-      <div className="flex gap-4 overflow-hidden px-4 -mx-4">
-        {Array.from({ length: 2 }).map((_, i) => (
           <div
-            key={i}
-            className="shrink-0 min-w-[85vw] h-[52vw] max-w-[520px] max-h-[360px] rounded-2xl bg-gray-100 animate-pulse"
-          />
-        ))}
-      </div>
+            ref={railRef}
+            className="
+              flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-px-4 px-4 -mx-4 pb-1
+              [scrollbar-width:none] [-ms-overflow-style:none]
+            "
+            style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+          >
+            {/* hide webkit scrollbar */}
+            <style>{`.snap-x::-webkit-scrollbar{ display:none }`}</style>
+
+            {items.map((p) => (
+              <div
+                key={p.id}
+                className="
+                    snap-start flex-none
+                    w-[33.333%] max-w-[420px]
+                  "
+              >
+                <ProductCard p={p} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
-/** ---------------- Main (landing page section) ---------------- */
+/** ---------- Main ---------- */
 export default function FeaturedCategories() {
   const [categories, setCategories] = useState<UICategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -227,19 +310,40 @@ export default function FeaturedCategories() {
     let alive = true;
     (async () => {
       try {
-        const data = await categoryApi.list();
-        if (!alive) return;
+        if (USING_SHOPIFY) {
+          // 1) load latest collections
+          const collections = await fetchCollectionsOnly(MAX_COLLECTIONS);
+          const filtered = collections.filter((c: any) => !EXCLUDE_HANDLES.has(c.handle));
 
-        if (Array.isArray(data)) {
-          // Validate & coerce -> UICategory with derived slug
-          const safe = data.filter(isCategory).map(toUICategory);
-          setCategories(safe.length ? safe : (FALLBACK_BASE as UICategory[]));
+          // 2) fetch ALL products for each collection, with gentle concurrency
+          const chunks = (arr: any[], size: number) =>
+            arr.reduce((acc, _, i) => (i % size ? acc : [...acc, arr.slice(i, i + size)]), [] as any[][]);
+
+          const ui: UICategory[] = [];
+          for (const group of chunks(filtered, 3)) { // 3 collections at a time
+            const results = await Promise.allSettled(
+              group.map((c) => fetchAllProductsForCollection(c.handle))
+            );
+            results.forEach((r, i) => {
+              const c = group[i];
+              const nodes = r.status === "fulfilled" ? r.value : [];
+              ui.push({
+                id: c.id,
+                name: c.title,
+                slug: c.handle,
+                image: c.image?.url ?? undefined,
+                __products: nodes.map(toUIProductFromShopify),
+              });
+            });
+          }
+
+          if (alive) setCategories(ui);
         } else {
-          setCategories(FALLBACK_BASE as UICategory[]);
+          if (alive) setCategories([]);
         }
       } catch (e) {
-        console.error("Failed to fetch categories:", e);
-        if (alive) setCategories(FALLBACK_BASE as UICategory[]);
+        console.error("FeaturedCategories load error:", e);
+        if (alive) setCategories([]);
       } finally {
         if (alive) setIsLoading(false);
       }
@@ -257,14 +361,28 @@ export default function FeaturedCategories() {
             Featured Categories
           </h2>
           <p className="mt-3 text-lg text-gray-600">
-            Swipe through gorgeous picks in each category. Tap to open.
+            Discover top picks in each category. Tap a product to view.
           </p>
         </div>
 
         <div className="mt-10">
           {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => <SkeletonRail key={i} />)
-            : categories.map((cat) => <CategoryRail key={cat.id} category={cat} />)}
+            ? Array.from({ length: 2 }).map((_, i) => (
+                <section key={i} className="mb-8 sm:mb-10">
+                  <div className="px-4 sm:px-0">
+                    <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-3" />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 px-4 sm:px-0">
+                    {[...Array(4)].map((_, k) => (
+                      <div
+                        key={k}
+                        className="h-64 rounded-2xl bg-gray-100 animate-pulse border border-black/5"
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))
+            : categories.map((cat) => <CategoryWithProducts key={cat.id} category={cat} />)}
         </div>
       </div>
     </section>

@@ -14,19 +14,23 @@ const companyLinks = [
   { href: "/blog", label: "Blog" },
   { href: "/sell-with-us", label: "Sell on CreatorMarket" },
   { href: "/careers", label: "Careers" },
+  // { href: "/support", label: "Support" }, // keep here if you have a route
 ];
 
 const legalLinks = [
-  { href: "/terms-of-service", label: "Terms of Service" },
-  { href: "/privacy-policy", label: "Privacy Policy" },
-  { href: "/support", label: "Support" },
+  // ✅ Razorpay-required policy pages (wired to your routes)
+  { href: "/termsandconditions", label: "Terms & Conditions" },
+  { href: "/privacypolicy", label: "Privacy Policy" },
+  { href: "/cancellationrefund", label: "Cancellation & Refund" },
+  { href: "/shippingdelivery", label: "Shipping & Delivery" },
+  { href: "/contactus", label: "Contact Us" },
 ];
 
 const socialLinks = [
-    { href: "#", icon: Twitter, label: "Twitter" },
-    { href: "#", icon: Instagram, label: "Instagram" },
-    { href: "#", icon: Github, label: "GitHub" },
-]
+  { href: "#", icon: Twitter, label: "Twitter" },
+  { href: "#", icon: Instagram, label: "Instagram" },
+  { href: "#", icon: Github, label: "GitHub" },
+];
 
 export default function Footer() {
   return (
@@ -42,46 +46,76 @@ export default function Footer() {
               India's premier marketplace for creators and makers.
             </p>
             <div className="mt-4 flex space-x-4">
-                {socialLinks.map((social) => (
-                    <a key={social.label} href={social.href} className="text-gray-400 hover:text-gray-500">
-                        <span className="sr-only">{social.label}</span>
-                        <social.icon className="h-6 w-6" aria-hidden="true" />
-                    </a>
-                ))}
+              {socialLinks.map((social) => (
+                <a
+                  key={social.label}
+                  href={social.href}
+                  className="text-gray-400 hover:text-gray-500"
+                  aria-label={social.label}
+                >
+                  <social.icon className="h-6 w-6" aria-hidden="true" />
+                </a>
+              ))}
             </div>
+
+            {/* Optional: quick contact snippet that matches your policy pages */}
+            <p className="mt-4 text-sm text-gray-600">
+              Email:{" "}
+              <a className="underline" href="mailto:theprintingmuse@gmail.com">
+                theprintingmuse@gmail.com
+              </a>{" "}
+              · Phone/WhatsApp: 8527229613
+            </p>
           </div>
 
           {/* Link Sections */}
           <div>
-            <h3 className="text-sm font-semibold tracking-wider text-gray-800 uppercase">Shop</h3>
+            <h3 className="text-sm font-semibold tracking-wider text-gray-800 uppercase">
+              Shop
+            </h3>
             <ul className="mt-4 space-y-3">
               {shopLinks.map((link) => (
                 <li key={link.label}>
-                  <Link to={link.href} className="text-base text-gray-500 hover:text-gray-900 transition-colors">
+                  <Link
+                    to={link.href}
+                    className="text-base text-gray-500 hover:text-gray-900 transition-colors"
+                  >
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
           </div>
+
           <div>
-            <h3 className="text-sm font-semibold tracking-wider text-gray-800 uppercase">Company</h3>
+            <h3 className="text-sm font-semibold tracking-wider text-gray-800 uppercase">
+              Company
+            </h3>
             <ul className="mt-4 space-y-3">
               {companyLinks.map((link) => (
                 <li key={link.label}>
-                  <Link to={link.href} className="text-base text-gray-500 hover:text-gray-900 transition-colors">
+                  <Link
+                    to={link.href}
+                    className="text-base text-gray-500 hover:text-gray-900 transition-colors"
+                  >
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
           </div>
+
           <div>
-            <h3 className="text-sm font-semibold tracking-wider text-gray-800 uppercase">Legal</h3>
+            <h3 className="text-sm font-semibold tracking-wider text-gray-800 uppercase">
+              Legal
+            </h3>
             <ul className="mt-4 space-y-3">
               {legalLinks.map((link) => (
                 <li key={link.label}>
-                  <Link to={link.href} className="text-base text-gray-500 hover:text-gray-900 transition-colors">
+                  <Link
+                    to={link.href}
+                    className="text-base text-gray-500 hover:text-gray-900 transition-colors"
+                  >
                     {link.label}
                   </Link>
                 </li>

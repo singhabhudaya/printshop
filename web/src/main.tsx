@@ -1,8 +1,9 @@
-
+// src/main.tsx
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
+
 import App from "./App";
 import Home from "./pages/Home";
 import ProductDetail from "./pages/ProductDetail";
@@ -18,20 +19,40 @@ import Disputes from "./pages/admin/Disputes";
 import ProtectedRoute from "./state/ProtectedRoute";
 import { AuthProvider } from "./state/AuthContext";
 
+// 🔽 Policy pages
+import TermsAndConditions from "./pages/termsandconditions";
+import PrivacyPolicy from "./pages/privacypolicy";
+import CancellationRefund from "./pages/cancellationrefund";
+import ShippingDelivery from "./pages/shippingdelivery";
+import ContactUs from "./pages/contactus";
+
 const router = createBrowserRouter([
-  { path: "/", element: <App />, children: [
-    { index: true, element: <Home /> },
-    { path: "product/:id", element: <ProductDetail /> },
-    { path: "category/:id", element: <CategoryPage /> },
-    { path: "cart", element: <Cart /> },
-    { path: "auth/login", element: <Login /> },
-    { path: "auth/register", element: <Register /> },
-    { path: "seller/tier1", element: <ProtectedRoute roles={["seller","admin"]}><Tier1Dashboard /></ProtectedRoute> },
-    { path: "seller/tier2", element: <ProtectedRoute roles={["seller","admin"]}><Tier2Dashboard /></ProtectedRoute> },
-    { path: "admin/orders", element: <ProtectedRoute roles={["admin"]}><Orders /></ProtectedRoute> },
-    { path: "admin/sellers", element: <ProtectedRoute roles={["admin"]}><Sellers /></ProtectedRoute> },
-    { path: "admin/disputes", element: <ProtectedRoute roles={["admin"]}><Disputes /></ProtectedRoute> },
-  ]},
+  {
+    path: "/",
+    element: <App />,
+    children: [
+      { index: true, element: <Home /> },
+      { path: "product/:id", element: <ProductDetail /> },
+      { path: "category/:id", element: <CategoryPage /> },
+      { path: "cart", element: <Cart /> },
+      { path: "auth/login", element: <Login /> },
+      { path: "auth/register", element: <Register /> },
+
+      { path: "seller/tier1", element: <ProtectedRoute roles={["seller", "admin"]}><Tier1Dashboard /></ProtectedRoute> },
+      { path: "seller/tier2", element: <ProtectedRoute roles={["seller", "admin"]}><Tier2Dashboard /></ProtectedRoute> },
+
+      { path: "admin/orders", element: <ProtectedRoute roles={["admin"]}><Orders /></ProtectedRoute> },
+      { path: "admin/sellers", element: <ProtectedRoute roles={["admin"]}><Sellers /></ProtectedRoute> },
+      { path: "admin/disputes", element: <ProtectedRoute roles={["admin"]}><Disputes /></ProtectedRoute> },
+
+      // 🔽 Public policy routes (Razorpay verification)
+      { path: "termsandconditions", element: <TermsAndConditions /> },
+      { path: "privacypolicy", element: <PrivacyPolicy /> },
+      { path: "cancellationrefund", element: <CancellationRefund /> },
+      { path: "shippingdelivery", element: <ShippingDelivery /> },
+      { path: "contactus", element: <ContactUs /> },
+    ],
+  },
 ]);
 
 createRoot(document.getElementById("root")!).render(

@@ -1,19 +1,13 @@
-<<<<<<< HEAD
 import { Router } from "express";
-import { PrismaClient, OrderStatus, PaymentStatus, Role } from "@prisma/client";
+import prismaPkg from "@prisma/client";               // runtime
+import type { Role, PaymentStatus, OrderStatus } from "@prisma/client"; // types only
 import { z } from "zod";
 import { auth, requireRole } from "../middleware/auth.js";
-=======
 
-import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
-import { requireAuth, requireRole } from "../middleware/auth.js";
->>>>>>> 4fc21c4de22ed271266fd8959f0f68c8ce9ab743
-
+const { PrismaClient } = prismaPkg;
 const prisma = new PrismaClient();
 const router = Router();
 
-<<<<<<< HEAD
 /** --------- helpers --------- */
 function paginate(query: any) {
   const page = Math.max(1, Number(query.page ?? 1));
@@ -24,21 +18,21 @@ function paginate(query: any) {
 
 /** --------- schemas --------- */
 const UpdateUserRole = z.object({
-  role: z.nativeEnum(Role)
+  role: z.nativeEnum((prismaPkg as any).Role), // runtime enum
 });
 
 const CreatePayout = z.object({
-  sellerId: z.string(),
-  amount: z.number().positive()
+  sellerId: z.string().min(1),
+  amount: z.number().positive(),
 });
 
 const UpdatePayout = z.object({
-  status: z.enum(["pending", "processing", "paid", "failed"])
+  status: z.enum(["pending", "processing", "paid", "failed"]),
 });
 
 /** --------- routes --------- */
 
-/** GET /api/admin/stats  */
+/** GET /api/admin/stats */
 router.get("/stats", auth, requireRole("admin"), async (_req, res) => {
   const [users, sellers, products, orders, paidRevenue] = await Promise.all([
     prisma.user.count(),
@@ -46,9 +40,9 @@ router.get("/stats", auth, requireRole("admin"), async (_req, res) => {
     prisma.product.count(),
     prisma.order.count(),
     prisma.order.aggregate({
-      _sum: { amount: true },
-      where: { paymentStatus: PaymentStatus.paid }
-    })
+      _sum: { amount: true }, // ✅ use amount field, not total
+      where: { paymentStatus: (prismaPkg as any).PaymentStatus.paid },
+    }),
   ]);
 
   res.json({
@@ -56,39 +50,43 @@ router.get("/stats", auth, requireRole("admin"), async (_req, res) => {
     sellers,
     products,
     orders,
-    revenuePaid: paidRevenue._sum.amount || 0
+    revenue: paidRevenue._sum.amount ?? 0, // ✅ fix
   });
 });
 
-/** GET /api/admin/users?role=buyer|seller|admin  */
+/** GET /api/admin/users?role=buyer|seller|admin */
 router.get("/users", auth, requireRole("admin"), async (req, res) => {
   const { role } = req.query as { role?: Role };
   const { page, limit, skip } = paginate(req.query);
 
-  const where = role ? { role } : {};
+  const where: any = {};
+  if (role) where.role = role;
+
   const [items, total] = await Promise.all([
     prisma.user.findMany({
       where,
-      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      select: { id: true, name: true, email: true, role: true, sellerTier: true, createdAt: true }
+      orderBy: { createdAt: "desc" },
     }),
-    prisma.user.count({ where })
+    prisma.user.count({ where }),
   ]);
 
-  res.json({ page, limit, total, items });
+  res.json({ items, page, limit, total });
 });
 
-/** PUT /api/admin/users/:id/role  */
+/** PUT /api/admin/users/:id/role */
 router.put("/users/:id/role", auth, requireRole("admin"), async (req, res) => {
   const parsed = UpdateUserRole.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "ValidationError", details: parsed.error.flatten() });
+  if (!parsed.success)
+    return res
+      .status(400)
+      .json({ error: "ValidationError", details: parsed.error.flatten() });
 
   try {
     const updated = await prisma.user.update({
       where: { id: req.params.id },
-      data: { role: parsed.data.role }
+      data: { role: parsed.data.role },
     });
     res.json({ id: updated.id, role: updated.role });
   } catch {
@@ -96,9 +94,12 @@ router.put("/users/:id/role", auth, requireRole("admin"), async (req, res) => {
   }
 });
 
-/** GET /api/admin/orders?status=&paymentStatus=  */
+/** GET /api/admin/orders?status=&paymentStatus= */
 router.get("/orders", auth, requireRole("admin"), async (req, res) => {
-  const { status, paymentStatus } = req.query as { status?: OrderStatus; paymentStatus?: PaymentStatus };
+  const { status, paymentStatus } = req.query as {
+    status?: OrderStatus;
+    paymentStatus?: PaymentStatus;
+  };
   const { page, limit, skip } = paginate(req.query);
 
   const where: any = {};
@@ -108,15 +109,14 @@ router.get("/orders", auth, requireRole("admin"), async (req, res) => {
   const [items, total] = await Promise.all([
     prisma.order.findMany({
       where,
-      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      include: { buyer: { select: { id: true, name: true, email: true } } }
+      orderBy: { createdAt: "desc" },
     }),
-    prisma.order.count({ where })
+    prisma.order.count({ where }),
   ]);
 
-  res.json({ page, limit, total, items });
+  res.json({ items, page, limit, total });
 });
 
 /** GET /api/admin/payouts */
@@ -125,57 +125,57 @@ router.get("/payouts", auth, requireRole("admin"), async (req, res) => {
 
   const [items, total] = await Promise.all([
     prisma.payout.findMany({
-      orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      include: { seller: { select: { id: true, name: true, email: true } } }
+      orderBy: { createdAt: "desc" },
+      include: {
+        seller: { select: { id: true, name: true, email: true } },
+      },
     }),
-    prisma.payout.count()
+    prisma.payout.count(),
   ]);
 
-  res.json({ page, limit, total, items });
+  res.json({ items, page, limit, total });
 });
 
 /** POST /api/admin/payouts */
 router.post("/payouts", auth, requireRole("admin"), async (req, res) => {
   const parsed = CreatePayout.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "ValidationError", details: parsed.error.flatten() });
+  if (!parsed.success)
+    return res
+      .status(400)
+      .json({ error: "ValidationError", details: parsed.error.flatten() });
 
-  const payout = await prisma.payout.create({
-    data: {
-      sellerId: parsed.data.sellerId,
-      amount: parsed.data.amount,
-      status: "pending"
-    }
+  const seller = await prisma.user.findUnique({
+    where: { id: parsed.data.sellerId },
+  });
+  if (!seller || seller.role !== "seller")
+    return res.status(400).json({ error: "Invalid sellerId" });
+
+  const created = await prisma.payout.create({
+    data: { sellerId: parsed.data.sellerId, amount: parsed.data.amount },
   });
 
-  res.status(201).json(payout);
+  res.status(201).json(created);
 });
 
 /** PUT /api/admin/payouts/:id */
 router.put("/payouts/:id", auth, requireRole("admin"), async (req, res) => {
   const parsed = UpdatePayout.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "ValidationError", details: parsed.error.flatten() });
+  if (!parsed.success)
+    return res
+      .status(400)
+      .json({ error: "ValidationError", details: parsed.error.flatten() });
 
   try {
     const updated = await prisma.payout.update({
       where: { id: req.params.id },
-      data: { status: parsed.data.status }
+      data: { status: parsed.data.status },
     });
     res.json(updated);
   } catch {
     res.status(404).json({ error: "Payout not found" });
   }
-=======
-router.get("/sellers", requireAuth, requireRole("admin"), async (_req, res) => {
-  const sellers = await prisma.user.findMany({ where: { role: "seller" }, orderBy: { createdAt: "desc" } });
-  res.json(sellers.map(s => ({ ...s, password: undefined })));
-});
-
-router.get("/orders", requireAuth, requireRole("admin"), async (_req, res) => {
-  const orders = await prisma.order.findMany({ orderBy: { createdAt: "desc" } });
-  res.json(orders);
->>>>>>> 4fc21c4de22ed271266fd8959f0f68c8ce9ab743
 });
 
 export default router;

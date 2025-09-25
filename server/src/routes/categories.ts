@@ -1,15 +1,11 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-<<<<<<< HEAD
 import { z } from "zod";
 import { auth, requireRole } from "../middleware/auth.js";
-=======
->>>>>>> 4fc21c4de22ed271266fd8959f0f68c8ce9ab743
 
 const prisma = new PrismaClient();
 const router = Router();
 
-<<<<<<< HEAD
 const UpsertCategory = z.object({
   name: z.string().min(2),
   image: z.string().url().optional().or(z.literal("").transform(() => undefined))
@@ -65,11 +61,4 @@ router.delete("/:id", auth, requireRole("admin"), async (req, res) => {
   }
 });
 
-=======
-router.get("/", async (_req, res) => {
-  const cats = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  res.json(cats);
-});
-
->>>>>>> 4fc21c4de22ed271266fd8959f0f68c8ce9ab743
 export default router;
