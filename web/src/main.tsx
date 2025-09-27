@@ -27,6 +27,9 @@ import ShippingDelivery from "./pages/shippingdelivery";
 import ContactUs from "./pages/contactus";
 import AboutUs from "./pages/aboutus"; // ✅ new
 
+// 🔽 NEW: STL Upload & Quote page
+import StlQuotePage from "./pages/StlQuotePage";
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -88,6 +91,9 @@ const router = createBrowserRouter([
       { path: "shippingdelivery", element: <ShippingDelivery /> },
       { path: "contactus", element: <ContactUs /> },
       { path: "aboutus", element: <AboutUs /> }, // ✅ new route
+
+      // 🔽 NEW public route for STL uploads
+      { path: "custom-upload", element: <StlQuotePage /> },
     ],
   },
 ]);
