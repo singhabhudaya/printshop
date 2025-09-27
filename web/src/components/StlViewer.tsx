@@ -5,6 +5,7 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls";
 
+
 export type StlUnit = "mm" | "cm" | "m";
 
 type Props = {
@@ -45,6 +46,7 @@ export default function StlViewer({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
+
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -61,7 +63,6 @@ export default function StlViewer({
 
     const dir = new THREE.DirectionalLight(0xffffff, 0.8);
     dir.position.set(5, 10, 7.5);
-    dir.castShadow = false;
     scene.add(dir);
 
     const grid = new THREE.GridHelper(10, 20, 0xcccccc, 0xeeeeee);
@@ -137,14 +138,8 @@ export default function StlViewer({
         box.getCenter(center);
         geo.translate(-center.x, -center.y, -center.z);
 
-        const mat = new THREE.MeshStandardMaterial({
-          color: 0x607d8b,
-          metalness: 0.1,
-          roughness: 0.7,
-        });
+        const mat = new THREE.MeshStandardMaterial({ color: 0x607d8b, metalness: 0.1, roughness: 0.7 });
         const mesh = new THREE.Mesh(geo, mat);
-        mesh.castShadow = false;
-        mesh.receiveShadow = false;
         scene.add(mesh);
         meshRef.current = mesh;
 
@@ -165,11 +160,5 @@ export default function StlViewer({
     fr.readAsArrayBuffer(file);
   }, [file, unit]);
 
-  return (
-    <div
-      ref={mountRef}
-      className="w-full h-full rounded-xl overflow-hidden border"
-      style={{ background }}
-    />
-  );
+  return <div ref={mountRef} className="w-full h-full rounded-xl overflow-hidden border" style={{ background }} />;
 }

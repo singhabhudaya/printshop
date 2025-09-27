@@ -167,6 +167,7 @@ function autoOrientForPrint(geo: THREE.BufferGeometry) {
   }
 }
 
+
 function fitCameraToBox(
   camera: THREE.PerspectiveCamera,
   controls: OrbitControlsType,
@@ -276,6 +277,7 @@ export default function StlQuotePage() {
   const totalGrams = useMemo(() => estimateGrams(totalVolumeCm3, filament, infill), [totalVolumeCm3, filament, infill]);
   const filamentCost = useMemo(() => totalGrams * pricePerGramINR(filament), [totalGrams, filament]);
 
+
   const pricingBreakdown = useMemo(() => {
     const partsFee = PER_PART_FEE_INR * items.length;
     const baseSubtotal = BASE_FEE_INR + filamentCost + finishCost + SLICER_SETUP_FEE_INR + partsFee;
@@ -364,6 +366,7 @@ export default function StlQuotePage() {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
+
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
