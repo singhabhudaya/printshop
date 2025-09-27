@@ -11,9 +11,7 @@ const shopLinks = [
 
 const companyLinks = [
   { href: "/aboutus", label: "About Us" },
-  { href: "/blog", label: "Blog" },
-  { href: "/sell-with-us", label: "Sell on Printing Muse" },
-  { href: "/careers", label: "Careers" },
+
   // { href: "/support", label: "Support" }, // keep here if you have a route
 ];
 
