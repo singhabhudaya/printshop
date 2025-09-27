@@ -1,8 +1,8 @@
 // src/components/StlViewer.tsx
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";       // ← no .js
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"; // ← no .js
 
 export type StlUnit = "mm" | "cm" | "m";
 
@@ -94,10 +94,11 @@ export default function StlViewer({
       controls.dispose();
       renderer.dispose();
       // clean scene
-      scene.traverse((obj) => {
-        if ((obj as any).geometry) (obj as any).geometry.dispose();
-        if ((obj as any).material) {
-          const m = (obj as any).material;
+      scene.traverse((obj: THREE.Object3D) => {
+        const anyObj = obj as any;
+        if (anyObj.geometry) anyObj.geometry.dispose();
+        if (anyObj.material) {
+          const m = anyObj.material as THREE.Material | THREE.Material[];
           if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
           else m.dispose();
         }
@@ -129,13 +130,12 @@ export default function StlViewer({
     fr.onload = () => {
       try {
         const geo = loader.parse(fr.result as ArrayBuffer).toNonIndexed();
-        // Scale units into centimeters for sanity, then to meters for display
-        const unitScale = unit === "mm" ? 0.001 : unit === "cm" ? 0.01 : 1; // -> meters
+        // units -> meters for display
+        const unitScale = unit === "mm" ? 0.001 : unit === "cm" ? 0.01 : 1;
         geo.scale(unitScale, unitScale, unitScale);
         geo.computeVertexNormals();
         geo.computeBoundingBox();
 
-        // Center & fit
         const box = geo.boundingBox!;
         const size = new THREE.Vector3();
         box.getSize(size);
@@ -158,7 +158,7 @@ export default function StlViewer({
         const cam = cameraRef.current!;
         const controls = controlsRef.current!;
         const maxDim = Math.max(size.x, size.y, size.z);
-        const fitDist = maxDim * 2.2;
+        const fitDist = Math.max(0.2, maxDim) * 2.2;
         cam.position.set(fitDist, fitDist, fitDist);
         cam.near = Math.max(fitDist / 1000, 0.01);
         cam.far = fitDist * 1000;
@@ -170,8 +170,6 @@ export default function StlViewer({
       }
     };
     fr.readAsArrayBuffer(file);
-
-    // cleanup handled by outer effect
   }, [file, unit]);
 
   return (
