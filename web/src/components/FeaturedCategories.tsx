@@ -5,13 +5,6 @@ import { ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 
 /** ---------- Types (UI) ---------- */
 type UIImage = { src: string; alt?: string };
-type UICategory = {
-  id: string;
-  name: string;
-  slug: string;
-  image?: string;
-  __products?: UIProduct[];
-};
 type UIProduct = {
   id: string;
   name: string;
@@ -19,6 +12,13 @@ type UIProduct = {
   handle?: string;
   price: number;
   compareAtPrice?: number;
+};
+type UICategory = {
+  id: string;
+  name: string;
+  slug: string;
+  image?: string;
+  __products?: UIProduct[];
 };
 
 /** ---------- ENV ---------- */
@@ -36,7 +36,11 @@ const EXCLUDE_HANDLES = new Set<string>([
 
 /** ---------- Helpers ---------- */
 const toSlug = (s: string) =>
-  s.toLowerCase().trim().replace(/[^\p{Letter}\p{Number}]+/gu, "-").replace(/^-+|-+$/g, "");
+  s
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
 function shopifyCollectionUrl(slugOrName: string) {
   const slug = toSlug(slugOrName);
   return `${SHOPIFY_BASE}/collections/${encodeURIComponent(slug)}`;
@@ -59,7 +63,7 @@ const SHOPIFY_GRAPHQL = USING_SHOPIFY
   ? `${SHOPIFY_BASE.replace(/^https?:\/\//, "https://")}/api/2024-07/graphql.json`
   : "";
 
-async function shopifyGql<T>(query: string, variables?: Record<string, any>): Promise<T> {
+async function shopifyGql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
   const res = await fetch(SHOPIFY_GRAPHQL, {
     method: "POST",
     headers: {
@@ -73,6 +77,28 @@ async function shopifyGql<T>(query: string, variables?: Record<string, any>): Pr
   return json.data as T;
 }
 
+/** ---------- GraphQL result types ---------- */
+type CollectionsOnlyResp = {
+  collections: {
+    edges: Array<{
+      node: { id: string; title: string; handle: string; image?: { url?: string | null } | null };
+    }>;
+  };
+};
+
+type ProductEdge = { cursor: string; node: any };
+type CollectionProductsResp = {
+  collectionByHandle: null | {
+    products: {
+      edges: ProductEdge[];
+      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    };
+  };
+};
+
+// helper for the non-null branch of collectionByHandle
+type ProductsBlock = NonNullable<CollectionProductsResp["collectionByHandle"]>["products"];
+
 /** ---------- Collections + ALL products (paginated) ---------- */
 
 // 1) fetch only the collections (fast)
@@ -84,8 +110,7 @@ async function fetchCollectionsOnly(limitCollections: number) {
       }
     }
   `;
-  type T = { collections: { edges: Array<{ node: any }> } };
-  const data = await shopifyGql<T>(q, { first: limitCollections });
+  const data = await shopifyGql<CollectionsOnlyResp>(q, { first: limitCollections });
   return data.collections.edges.map((e) => e.node);
 }
 
@@ -111,23 +136,22 @@ async function fetchAllProductsForCollection(handle: string, pageSize = 250) {
       }
     }
   `;
-  type T = {
-    collectionByHandle: null | {
-      products: {
-        edges: Array<{ cursor: string; node: any }>;
-        pageInfo: { hasNextPage: boolean; endCursor: string | null };
-      };
-    };
-  };
 
   const products: any[] = [];
   let cursor: string | null = null;
   let hasNext = true;
 
   while (hasNext) {
-    const list = (await shopifyGql<T>(q, { handle, first: pageSize, cursor })).collectionByHandle?.products;
+    const resp: CollectionProductsResp = await shopifyGql<CollectionProductsResp>(q, {
+      handle,
+      first: pageSize,
+      cursor,
+    });
+
+    const list: ProductsBlock | undefined = resp.collectionByHandle?.products;
     if (!list) break;
-    products.push(...list.edges.map((e: { node: any }) => e.node));
+
+    products.push(...list.edges.map((e: ProductEdge) => e.node));
     hasNext = list.pageInfo.hasNextPage;
     cursor = list.pageInfo.endCursor;
   }
@@ -140,7 +164,7 @@ function toUIProductFromShopify(node: any): UIProduct {
   return {
     id: node.id,
     name: node.title,
-    image: node.featuredImage?.url,
+    image: node.featuredImage?.url ?? undefined,
     handle: node.handle,
     price,
     compareAtPrice: compareAt,

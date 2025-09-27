@@ -1,9 +1,26 @@
-// src/pages/StlQuotePage.tsx
+// /web/src/pages/StlQuotePage.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
+import {
+  WebGLRenderer,
+  Scene,
+  PerspectiveCamera,
+  Mesh,
+  Object3D,
+  Material,
+  Box3,
+  BufferGeometry,
+  BufferAttribute,
+  Vector3,
+  Matrix3,
+  Color,
+  HemisphereLight,
+  DirectionalLight,
+  GridHelper,
+  MeshStandardMaterial,
+  SRGBColorSpace,
+} from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls";
 
 const BASE_FEE_INR = 100 as const;
 const FILAMENT_PRICE_PER_KG = { PLA: 900, ABS: 1000, PETG: 1400 } as const;
@@ -23,13 +40,13 @@ function pricePerGramINR(material: FilamentType) {
   return FILAMENT_PRICE_PER_KG[material] / 1000;
 }
 
-function cm3FromGeometry(geometry: THREE.BufferGeometry): number {
-  const pos = geometry.attributes.position as THREE.BufferAttribute;
+function cm3FromGeometry(geometry: BufferGeometry): number {
+  const pos = geometry.attributes.position as BufferAttribute;
   const index = geometry.index?.array as ArrayLike<number> | undefined;
 
-  const vA = new THREE.Vector3();
-  const vB = new THREE.Vector3();
-  const vC = new THREE.Vector3();
+  const vA = new Vector3();
+  const vB = new Vector3();
+  const vC = new Vector3();
 
   let volume = 0;
   const tri = (a: number, b: number, c: number) => {
@@ -47,7 +64,7 @@ function cm3FromGeometry(geometry: THREE.BufferGeometry): number {
   return Math.abs(volume) / 6.0;
 }
 
-function convertGeometryUnitsToCm(geometry: THREE.BufferGeometry, unit: StlUnit) {
+function convertGeometryUnitsToCm(geometry: BufferGeometry, unit: StlUnit) {
   const scale = unit === "mm" ? 0.1 : unit === "cm" ? 1 : 100;
   geometry.scale(scale, scale, scale);
 }
@@ -59,12 +76,12 @@ function estimateGrams(volumeCm3: number, material: FilamentType, infillPct: num
 
 const fmt = (n: number) => new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n);
 
-function triArea(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) {
+function triArea(a: Vector3, b: Vector3, c: Vector3) {
   return b.clone().sub(a).cross(c.clone().sub(a)).length() * 0.5;
 }
 
-function computeBaseAreaAndHeight(geo: THREE.BufferGeometry) {
-  const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+function computeBaseAreaAndHeight(geo: BufferGeometry) {
+  const pos = geo.getAttribute("position") as BufferAttribute;
   let minY = Infinity, maxY = -Infinity;
   for (let i = 0; i < pos.count; i++) {
     const y = pos.getY(i);
@@ -72,8 +89,8 @@ function computeBaseAreaAndHeight(geo: THREE.BufferGeometry) {
     if (y > maxY) maxY = y;
   }
   const epsilon = Math.max(1e-5, (maxY - minY) * 1e-4);
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-  const n = new THREE.Vector3();
+  const a = new Vector3(), b = new Vector3(), c = new Vector3();
+  const n = new Vector3();
 
   let baseArea = 0;
   for (let i = 0; i < pos.count; i += 3) {
@@ -95,8 +112,8 @@ function computeBaseAreaAndHeight(geo: THREE.BufferGeometry) {
   return { baseArea, height };
 }
 
-function autoOrientForPrint(geo: THREE.BufferGeometry) {
-  const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+function autoOrientForPrint(geo: BufferGeometry) {
+  const pos = geo.getAttribute("position") as BufferAttribute;
   const original = new Float32Array(pos.array as ArrayLike<number>);
 
   const perms: Array<[number, number, number]> = [
@@ -111,7 +128,7 @@ function autoOrientForPrint(geo: THREE.BufferGeometry) {
   let bestArray: Float32Array | null = null;
 
   const applyTransform = (perm: [number, number, number], s: number[]) => {
-    const m = new THREE.Matrix3();
+    const m = new Matrix3();
     const rows = [[0,0,0],[0,0,0],[0,0,0]];
     rows[0][perm[0]-1] = s[0];
     rows[1][perm[1]-1] = s[1];
@@ -122,7 +139,7 @@ function autoOrientForPrint(geo: THREE.BufferGeometry) {
       rows[2][0], rows[2][1], rows[2][2],
     );
 
-    const v = new THREE.Vector3();
+    const v = new Vector3();
     for (let i = 0; i < pos.count; i++) {
       v.fromArray(original, i * 3).applyMatrix3(m);
       pos.setXYZ(i, v.x, v.y, v.z);
@@ -167,16 +184,15 @@ function autoOrientForPrint(geo: THREE.BufferGeometry) {
   }
 }
 
-
 function fitCameraToBox(
-  camera: THREE.PerspectiveCamera,
-  controls: OrbitControlsType,
-  box: THREE.Box3,
+  camera: PerspectiveCamera,
+  controls: InstanceType<typeof OrbitControls>,
+  box: Box3,
   padding = 1.35
 ) {
-  const size = new THREE.Vector3();
+  const size = new Vector3();
   box.getSize(size);
-  const center = new THREE.Vector3();
+  const center = new Vector3();
   box.getCenter(center);
 
   const fov = (camera.fov * Math.PI) / 180;
@@ -188,7 +204,7 @@ function fitCameraToBox(
 
   const dist = Math.max(distX, distY, size.z) * padding;
 
-  const dir = new THREE.Vector3(1, 1, 1).normalize();
+  const dir = new Vector3(1, 1, 1).normalize();
   camera.position.copy(center).add(dir.multiplyScalar(dist));
   camera.near = Math.max(dist / 1000, 0.01);
   camera.far = dist * 1000;
@@ -224,11 +240,11 @@ export default function StlQuotePage() {
 
   // Viewer refs
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef = useRef<OrbitControlsType | null>(null);
-  const meshRef = useRef<THREE.Mesh | null>(null);
+  const rendererRef = useRef<WebGLRenderer | null>(null);
+  const sceneRef = useRef<Scene | null>(null);
+  const cameraRef = useRef<PerspectiveCamera | null>(null);
+  const controlsRef = useRef<InstanceType<typeof OrbitControls> | null>(null);
+  const meshRef = useRef<Mesh | null>(null);
   const resizeObsRef = useRef<ResizeObserver | null>(null);
 
   const onPickFiles = () => fileInputRef.current?.click();
@@ -248,12 +264,30 @@ export default function StlQuotePage() {
             convertGeometryUnitsToCm(geo, unit);
             autoOrientForPrint(geo);
             const volumeCm3 = cm3FromGeometry(geo);
-            resolve({ id: crypto.randomUUID(), name: file.name, file, unit, volumeCm3 });
+            resolve({
+              id: (crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)),
+              name: file.name,
+              file,
+              unit,
+              volumeCm3
+            });
           } catch (e: any) {
-            resolve({ id: crypto.randomUUID(), name: file.name, file, unit, error: e?.message || "Failed to parse STL" });
+            resolve({
+              id: (crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)),
+              name: file.name,
+              file,
+              unit,
+              error: e?.message || "Failed to parse STL"
+            });
           }
         };
-        fr.onerror = () => resolve({ id: crypto.randomUUID(), name: file.name, file, unit, error: "File read error" });
+        fr.onerror = () => resolve({
+          id: (crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)),
+          name: file.name,
+          file,
+          unit,
+          error: "File read error"
+        });
         fr.readAsArrayBuffer(file);
       });
 
@@ -276,7 +310,6 @@ export default function StlQuotePage() {
   const finishCost = useMemo(() => (filament === "ABS" && absFinish === "glossy" ? 100 : 0), [filament, absFinish]);
   const totalGrams = useMemo(() => estimateGrams(totalVolumeCm3, filament, infill), [totalVolumeCm3, filament, infill]);
   const filamentCost = useMemo(() => totalGrams * pricePerGramINR(filament), [totalGrams, filament]);
-
 
   const pricingBreakdown = useMemo(() => {
     const partsFee = PER_PART_FEE_INR * items.length;
@@ -359,19 +392,18 @@ export default function StlQuotePage() {
     const mount = mountRef.current;
     if (!mount) return;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#f8fafc");
+    const scene = new Scene();
+    scene.background = new Color("#f8fafc");
     sceneRef.current = scene;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
-
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.outputColorSpace = SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const camera = new THREE.PerspectiveCamera(45, mount.clientWidth / mount.clientHeight, 0.01, 2000);
+    const camera = new PerspectiveCamera(45, mount.clientWidth / mount.clientHeight, 0.01, 2000);
     camera.position.set(2, 2, 2);
     cameraRef.current = camera;
 
@@ -381,17 +413,17 @@ export default function StlQuotePage() {
     controls.autoRotateSpeed = 1.0;
     controlsRef.current = controls;
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
+    const hemi = new HemisphereLight(0xffffff, 0x444444, 0.9);
     hemi.position.set(0, 1, 0);
     scene.add(hemi);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+    const dir = new DirectionalLight(0xffffff, 0.6);
     dir.position.set(5, 10, 7.5);
     scene.add(dir);
 
-    const grid = new THREE.GridHelper(10, 20, 0xcccccc, 0xeeeeee);
-    (grid.material as THREE.Material).opacity = 0.6;
-    (grid.material as THREE.Material).transparent = true;
+    const grid = new GridHelper(10, 20, 0xcccccc, 0xeeeeee);
+    (grid.material as Material).opacity = 0.6;
+    (grid.material as Material).transparent = true;
     scene.add(grid);
 
     const onResize = () => {
@@ -403,7 +435,7 @@ export default function StlQuotePage() {
       cameraRef.current.updateProjectionMatrix();
 
       if (meshRef.current) {
-        const g = meshRef.current.geometry as THREE.BufferGeometry;
+        const g = meshRef.current.geometry as BufferGeometry;
         g.computeBoundingBox();
         fitCameraToBox(cameraRef.current!, controlsRef.current!, g.boundingBox!, 1.35);
       }
@@ -426,12 +458,12 @@ export default function StlQuotePage() {
       controls.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
-      scene.traverse((obj: THREE.Object3D) => {
+      scene.traverse((obj: Object3D) => {
         const anyObj = obj as any;
         if (anyObj.geometry) anyObj.geometry.dispose();
         if (anyObj.material) {
-          const m = anyObj.material as THREE.Material | THREE.Material[];
-          if (Array.isArray(m)) m.forEach((mm: THREE.Material) => mm.dispose());
+          const m = anyObj.material as Material | Material[];
+          if (Array.isArray(m)) m.forEach((mm: Material) => mm.dispose());
           else m.dispose();
         }
       });
@@ -468,8 +500,8 @@ export default function StlQuotePage() {
 
         autoOrientForPrint(geo);
 
-        const mat = new THREE.MeshStandardMaterial({ color: 0x607d8b, metalness: 0.1, roughness: 0.75 });
-        const mesh = new THREE.Mesh(geo, mat);
+        const mat = new MeshStandardMaterial({ color: 0x607d8b, metalness: 0.1, roughness: 0.75 });
+        const mesh = new Mesh(geo, mat);
         sceneRef.current!.add(mesh);
         meshRef.current = mesh;
 
@@ -486,12 +518,18 @@ export default function StlQuotePage() {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-2">Upload Your STL & Get Instant Quote</h1>
-        <p className="text-slate-600 mb-6">All processing happens in your browser. We don’t upload your files—your CPU/RAM does the work.</p>
+        <p className="text-slate-600 mb-6">
+          All processing happens in your browser. We don’t upload your files—your CPU/RAM does the work.
+        </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl shadow p-5">
             <div className="mb-4" style={{ height: 340 }}>
-              <div ref={mountRef} className="w-full h-full rounded-xl overflow-hidden border" style={{ background: "#f8fafc" }} />
+              <div
+                ref={mountRef}
+                className="w-full h-full rounded-xl overflow-hidden border"
+                style={{ background: "#f8fafc" }}
+              />
             </div>
 
             <div
@@ -505,7 +543,14 @@ export default function StlQuotePage() {
             >
               <div className="text-lg font-medium">Drop STL files here or click to browse</div>
               <div className="text-sm text-slate-500">Multiple files supported (.stl)</div>
-              <input ref={fileInputRef} type="file" accept=".stl" multiple onChange={(e) => handleFiles(e.target.files)} className="hidden" />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".stl"
+                multiple
+                onChange={(e) => handleFiles(e.target.files)}
+                className="hidden"
+              />
             </div>
 
             {busy && <div className="mt-4 text-sm text-blue-600">Parsing STL(s)…</div>}
@@ -516,45 +561,55 @@ export default function StlQuotePage() {
                   key={it.id}
                   className={`border rounded-xl p-3 cursor-pointer ${selectedId === it.id ? "ring-2 ring-indigo-500" : ""}`}
                   onClick={() => setSelectedId(it.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{it.name}</div>
-                      {it.error ? (
-                        <div className="text-sm text-red-600">{it.error}</div>
-                      ) : (
-                        <div className="text-sm text-slate-600">Volume: {it.volumeCm3 ? `${fmt(it.volumeCm3)} cm³` : "…"}</div>
-                      )}
-                    </div>
-                    <button
-                      className="text-sm text-rose-600 hover:underline"
-                      onClick={(e) => { e.stopPropagation(); removeItem(it.id); }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="mt-2 flex items-center gap-3 flex-wrap">
-                    <label className="text-sm">Units:</label>
-                    <select
-                      className="border rounded-md px-2 py-1 text-sm"
-                      value={it.unit}
-                      onChange={(e) => updateUnit(it.id, e.target.value as StlUnit)}
-                    >
-                      <option value="mm">mm</option>
-                      <option value="cm">cm</option>
-                      <option value="m">m</option>
-                    </select>
-                    <button
-                      className="text-xs border rounded-md px-2 py-1 hover:bg-slate-50"
-                      onClick={(e) => { e.stopPropagation(); recalcOne(it.id); }}
-                    >
-                      Recalculate
-                    </button>
-                  </div>
-                </li>
+                />
               ))}
             </ul>
+
+            {/* details for selected item */}
+            {items.map((it) => (
+              <div
+                key={`${it.id}-details`}
+                className={`mt-3 border rounded-xl p-3 ${selectedId === it.id ? "" : "hidden"}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{it.name}</div>
+                    {it.error ? (
+                      <div className="text-sm text-red-600">{it.error}</div>
+                    ) : (
+                      <div className="text-sm text-slate-600">
+                        Volume: {it.volumeCm3 ? `${fmt(it.volumeCm3)} cm³` : "…"}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className="text-sm text-rose-600 hover:underline"
+                    onClick={() => removeItem(it.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                <div className="mt-2 flex items-center gap-3 flex-wrap">
+                  <label className="text-sm">Units:</label>
+                  <select
+                    className="border rounded-md px-2 py-1 text-sm"
+                    value={it.unit}
+                    onChange={(e) => updateUnit(it.id, e.target.value as StlUnit)}
+                  >
+                    <option value="mm">mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                  <button
+                    className="text-xs border rounded-md px-2 py-1 hover:bg-slate-50"
+                    onClick={() => recalcOne(it.id)}
+                  >
+                    Recalculate
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="bg-white rounded-2xl shadow p-5">
@@ -564,7 +619,11 @@ export default function StlQuotePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Filament Type</label>
-                  <select className="border rounded-md px-3 py-2" value={filament} onChange={(e) => setFilament(e.target.value as FilamentType)}>
+                  <select
+                    className="border rounded-md px-3 py-2"
+                    value={filament}
+                    onChange={(e) => setFilament(e.target.value as FilamentType)}
+                  >
                     <option value="PLA">PLA</option>
                     <option value="ABS">ABS</option>
                     <option value="PETG">PETG</option>
@@ -573,13 +632,25 @@ export default function StlQuotePage() {
 
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Color</label>
-                  <input className="border rounded-md px-3 py-2" placeholder="e.g. Black, White, Red" value={color} onChange={(e) => setColor(e.target.value)} />
+                  <input
+                    className="border rounded-md px-3 py-2"
+                    placeholder="e.g. Black, White, Red"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Infill (%)</label>
-                <input type="range" min={5} max={100} step={5} value={infill} onChange={(e) => setInfill(Number(e.target.value))} />
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={infill}
+                  onChange={(e) => setInfill(Number(e.target.value))}
+                />
                 <div className="text-sm text-slate-600">Approximate. Current: {infill}%</div>
               </div>
 
@@ -588,11 +659,19 @@ export default function StlQuotePage() {
                   <label className="text-sm font-medium mb-1">ABS Finish</label>
                   <div className="flex items-center gap-4">
                     <label className="inline-flex items-center gap-2 text-sm">
-                      <input type="radio" checked={absFinish === "normal"} onChange={() => setAbsFinish("normal")} />
+                      <input
+                        type="radio"
+                        checked={absFinish === "normal"}
+                        onChange={() => setAbsFinish("normal")}
+                      />
                       Normal (Free)
                     </label>
                     <label className="inline-flex items-center gap-2 text-sm">
-                      <input type="radio" checked={absFinish === "glossy"} onChange={() => setAbsFinish("glossy")} />
+                      <input
+                        type="radio"
+                        checked={absFinish === "glossy"}
+                        onChange={() => setAbsFinish("glossy")}
+                      />
                       Glossy via acetone (+₹100)
                     </label>
                   </div>
@@ -605,9 +684,9 @@ export default function StlQuotePage() {
               <div className="text-sm text-slate-700 space-y-1">
                 <div>Base fee: <strong>₹{fmt(BASE_FEE_INR)}</strong></div>
                 <div>Slicer / setup: <strong>₹{fmt(SLICER_SETUP_FEE_INR)}</strong></div>
-                <div>Per-part fee ({items.length}×₹{fmt(PER_PART_FEE_INR)}): <strong>₹{fmt(pricingBreakdown.partsFee)}</strong></div>
+                <div>Per-part fee ({items.length}×₹{fmt(PER_PART_FEE_INR)}): <strong>₹{fmt(PER_PART_FEE_INR * items.length)}</strong></div>
                 <div>Total volume: <strong>{fmt(totalVolumeCm3)} cm³</strong></div>
-                <div>Est. total grams: <strong>₹{fmt(totalGrams)} g</strong></div>
+                <div>Est. total grams: <strong>{fmt(totalGrams)} g</strong></div>
                 <div>Filament cost (₹/g = {fmt(pricePerGramINR(filament))}): <strong>₹{fmt(filamentCost)}</strong></div>
                 {finishCost > 0 && <div>ABS glossy finish: <strong>₹{fmt(finishCost)}</strong></div>}
 
@@ -633,8 +712,15 @@ export default function StlQuotePage() {
 
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium">Google Drive link to your STL files</label>
-                <input className="border rounded-md px-3 py-2" placeholder="https://drive.google.com/…" value={gdriveLink} onChange={(e) => setGdriveLink(e.target.value)} />
-                <div className="text-xs text-slate-500">We’ll pass this link to checkout and your confirmation email.</div>
+                <input
+                  className="border rounded-md px-3 py-2"
+                  placeholder="https://drive.google.com/…"
+                  value={gdriveLink}
+                  onChange={(e) => setGdriveLink(e.target.value)}
+                />
+                <div className="text-xs text-slate-500">
+                  We’ll pass this link to checkout and your confirmation email.
+                </div>
               </div>
 
               <button
