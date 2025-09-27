@@ -1,8 +1,8 @@
 // src/pages/StlQuotePage.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";          // ✅ no .js
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"; // ✅ no .js
 
 const BASE_FEE_INR = 100 as const;
 const FILAMENT_PRICE_PER_KG = { PLA: 900, ABS: 1000, PETG: 1400 } as const;
@@ -432,10 +432,11 @@ export default function StlQuotePage() {
       controls.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
-      scene.traverse((obj) => {
-        if ((obj as any).geometry) (obj as any).geometry.dispose();
-        if ((obj as any).material) {
-          const m = (obj as any).material;
+      scene.traverse((obj: THREE.Object3D) => {          // ✅ typed
+        const anyObj = obj as any;
+        if (anyObj.geometry) anyObj.geometry.dispose();
+        if (anyObj.material) {
+          const m = anyObj.material as THREE.Material | THREE.Material[];
           if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
           else m.dispose();
         }
@@ -547,7 +548,8 @@ export default function StlQuotePage() {
                       {it.error ? (
                         <div className="text-sm text-red-600">{it.error}</div>
                       ) : (
-                        <div className="text-sm text-slate-600">Volume: {it.volumeCm3 ? `${fmt(it.volumeCm3)} cm³` : "…"}
+                        <div className="text-sm text-slate-600">
+                          Volume: {it.volumeCm3 ? `${fmt(it.volumeCm3)} cm³` : "…"}
                         </div>
                       )}
                     </div>
