@@ -12,7 +12,7 @@ const shopLinks = [
 const companyLinks = [
   { href: "/about", label: "About Us" },
   { href: "/blog", label: "Blog" },
-  { href: "/sell-with-us", label: "Sell on CreatorMarket" },
+  { href: "/sell-with-us", label: "Sell on Printing Muse" },
   { href: "/careers", label: "Careers" },
   // { href: "/support", label: "Support" }, // keep here if you have a route
 ];
@@ -40,7 +40,7 @@ export default function Footer() {
           {/* Logo and Tagline section */}
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="text-xl font-bold tracking-tight">
-              Creator<span className="text-indigo-600">Market</span>
+              Printing<span className="text-indigo-600">Muse</span>
             </Link>
             <p className="mt-2 text-sm text-gray-500">
               India's premier marketplace for creators and makers.
