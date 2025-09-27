@@ -10,7 +10,7 @@ const shopLinks = [
 ];
 
 const companyLinks = [
-  { href: "/about", label: "About Us" },
+  { href: "/aboutus", label: "About Us" },
   { href: "/blog", label: "Blog" },
   { href: "/sell-with-us", label: "Sell on Printing Muse" },
   { href: "/careers", label: "Careers" },
