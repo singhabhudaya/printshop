@@ -1,10 +1,13 @@
 [build]
-  # Point to your frontend folder
   base = "web"
-  command = "npm install && npm run build"
-  publish = "dist"   # or "build", ".next", etc. depending on your framework
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
 
 [functions]
+  # This is relative to the build base ("web"), so this resolves to web/netlify/functions
   directory = "netlify/functions"
 
 [[redirects]]
