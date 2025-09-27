@@ -1,16 +1,17 @@
 // src/components/StlViewer.tsx
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader";       // ← no .js
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"; // ← no .js
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls";
 
 export type StlUnit = "mm" | "cm" | "m";
 
 type Props = {
-  file: File;                 // STL file (binary)
-  unit?: StlUnit;             // default "mm"
-  autoRotate?: boolean;       // default true
-  background?: string;        // CSS color, default "#f8fafc"
+  file: File;
+  unit?: StlUnit;
+  autoRotate?: boolean;
+  background?: string;
 };
 
 export default function StlViewer({
@@ -23,7 +24,7 @@ export default function StlViewer({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
+  const controlsRef = useRef<OrbitControlsType | null>(null);
   const meshRef = useRef<THREE.Mesh | null>(null);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export default function StlViewer({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -54,7 +55,6 @@ export default function StlViewer({
     controls.autoRotateSpeed = 1.0;
     controlsRef.current = controls;
 
-    // Lights
     const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
     hemi.position.set(0, 1, 0);
     scene.add(hemi);
@@ -64,12 +64,10 @@ export default function StlViewer({
     dir.castShadow = false;
     scene.add(dir);
 
-    // Ground grid (subtle)
     const grid = new THREE.GridHelper(10, 20, 0xcccccc, 0xeeeeee);
     grid.position.y = -0.001;
     scene.add(grid);
 
-    // Handle resize
     const onResize = () => {
       const w = mount.clientWidth;
       const h = mount.clientHeight;
@@ -93,13 +91,12 @@ export default function StlViewer({
       ro.disconnect();
       controls.dispose();
       renderer.dispose();
-      // clean scene
       scene.traverse((obj: THREE.Object3D) => {
         const anyObj = obj as any;
         if (anyObj.geometry) anyObj.geometry.dispose();
         if (anyObj.material) {
           const m = anyObj.material as THREE.Material | THREE.Material[];
-          if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+          if (Array.isArray(m)) m.forEach((mm: THREE.Material) => mm.dispose());
           else m.dispose();
         }
       });
@@ -111,12 +108,10 @@ export default function StlViewer({
     };
   }, [autoRotate, background]);
 
-  // Load STL whenever file/unit changes
   useEffect(() => {
     if (!sceneRef.current || !file) return;
     const scene = sceneRef.current;
 
-    // remove previous mesh
     if (meshRef.current) {
       scene.remove(meshRef.current);
       (meshRef.current.geometry as any)?.dispose?.();
@@ -130,7 +125,6 @@ export default function StlViewer({
     fr.onload = () => {
       try {
         const geo = loader.parse(fr.result as ArrayBuffer).toNonIndexed();
-        // units -> meters for display
         const unitScale = unit === "mm" ? 0.001 : unit === "cm" ? 0.01 : 1;
         geo.scale(unitScale, unitScale, unitScale);
         geo.computeVertexNormals();
@@ -154,11 +148,10 @@ export default function StlViewer({
         scene.add(mesh);
         meshRef.current = mesh;
 
-        // Reframe camera
         const cam = cameraRef.current!;
         const controls = controlsRef.current!;
         const maxDim = Math.max(size.x, size.y, size.z);
-        const fitDist = Math.max(0.2, maxDim) * 2.2;
+        const fitDist = maxDim * 2.2;
         cam.position.set(fitDist, fitDist, fitDist);
         cam.near = Math.max(fitDist / 1000, 0.01);
         cam.far = fitDist * 1000;
