@@ -1,8 +1,9 @@
 // src/pages/StlQuotePage.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader";          // ✅ no .js
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls"; // ✅ no .js
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls";
 
 const BASE_FEE_INR = 100 as const;
 const FILAMENT_PRICE_PER_KG = { PLA: 900, ABS: 1000, PETG: 1400 } as const;
@@ -169,10 +170,11 @@ function autoOrientForPrint(geo: THREE.BufferGeometry) {
     geo.computeVertexNormals();
   }
 }
+
 /* -------------------- Adaptive camera fit -------------------- */
 function fitCameraToBox(
   camera: THREE.PerspectiveCamera,
-  controls: OrbitControls,
+  controls: OrbitControlsType,
   box: THREE.Box3,
   padding = 1.35
 ) {
@@ -230,7 +232,7 @@ export default function StlQuotePage() {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
+  const controlsRef = useRef<OrbitControlsType | null>(null);
   const meshRef = useRef<THREE.Mesh | null>(null);
   const resizeObsRef = useRef<ResizeObserver | null>(null);
 
@@ -281,7 +283,7 @@ export default function StlQuotePage() {
   const totalGrams = useMemo(() => estimateGrams(totalVolumeCm3, filament, infill), [totalVolumeCm3, filament, infill]);
   const filamentCost = useMemo(() => totalGrams * pricePerGramINR(filament), [totalGrams, filament]);
 
-  // 💰 New: expanded pricing breakdown with margin, risk, min order
+  // 💰 Expanded pricing breakdown
   const pricingBreakdown = useMemo(() => {
     const partsFee = PER_PART_FEE_INR * items.length;
     const baseSubtotal = BASE_FEE_INR + filamentCost + finishCost + SLICER_SETUP_FEE_INR + partsFee;
@@ -372,7 +374,8 @@ export default function StlQuotePage() {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    // three r165+: use outputColorSpace
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -432,7 +435,7 @@ export default function StlQuotePage() {
       controls.dispose();
       renderer.dispose();
       mount.removeChild(renderer.domElement);
-      scene.traverse((obj: THREE.Object3D) => {          // ✅ typed
+      scene.traverse((obj: THREE.Object3D) => {
         const anyObj = obj as any;
         if (anyObj.geometry) anyObj.geometry.dispose();
         if (anyObj.material) {
