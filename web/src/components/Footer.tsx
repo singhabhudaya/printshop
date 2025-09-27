@@ -43,7 +43,7 @@ export default function Footer() {
               Printing<span className="text-[#A47C5B]">Muse</span>
             </Link>
             <p className="mt-2 text-sm text-gray-500">
-              India's premier marketplace for creators and makers.
+              
             </p>
             <div className="mt-4 flex space-x-4">
               {socialLinks.map((social) => (
@@ -127,7 +127,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 border-t border-gray-200 pt-8">
           <p className="text-base text-gray-400 text-center">
-            &copy; {new Date().getFullYear()} CreatorMarket. Made with ❤️ in India.
+            &copy; {new Date().getFullYear()} Printing Muse. Made with ❤️ in India.
           </p>
         </div>
       </div>
