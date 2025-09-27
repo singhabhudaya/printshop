@@ -40,7 +40,7 @@ export default function Footer() {
           {/* Logo and Tagline section */}
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="text-xl font-bold tracking-tight">
-              Printing<span className="text-indigo-600">Muse</span>
+              Printing<span className="text-[#A47C5B]">Muse</span>
             </Link>
             <p className="mt-2 text-sm text-gray-500">
               India's premier marketplace for creators and makers.
