@@ -1,4 +1,3 @@
-
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -14,7 +13,11 @@
     "esModuleInterop": true,
     "strict": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["vite/client"]
+
+    // 👇 include three’s ambient types
+    "types": ["vite/client", "three"]
   },
-  "include": ["src"]
+
+  // 👇 make sure our custom .d.ts files are included
+  "include": ["src", "src/types"]
 }
