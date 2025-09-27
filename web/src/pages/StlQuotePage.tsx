@@ -9,12 +9,12 @@ const BASE_FEE_INR = 100 as const;
 const FILAMENT_PRICE_PER_KG = { PLA: 900, ABS: 1000, PETG: 1400 } as const;
 const FILAMENT_DENSITY = { PLA: 1.24, ABS: 1.04, PETG: 1.27 } as const;
 
-// 🔧 Pricing knobs — tweak freely
-const SLICER_SETUP_FEE_INR = 50;  // one-time per order
-const PER_PART_FEE_INR = 25;      // each STL file
-const MARKUP_PCT = 0.25;          // 25% business margin
-const RISK_BUFFER_PCT = 0.10;     // 10% for reprints/complaints
-const MIN_ORDER_INR = 200;        // floor price
+// 🔧 Pricing knobs
+const SLICER_SETUP_FEE_INR = 50;
+const PER_PART_FEE_INR = 25;
+const MARKUP_PCT = 0.25;
+const RISK_BUFFER_PCT = 0.10;
+const MIN_ORDER_INR = 200;
 
 type FilamentType = keyof typeof FILAMENT_PRICE_PER_KG;
 type StlUnit = "mm" | "cm" | "m";
@@ -44,7 +44,6 @@ function cm3FromGeometry(geometry: THREE.BufferGeometry): number {
   } else {
     for (let i = 0; i < pos.count; i += 3) tri(i, i + 1, i + 2);
   }
-
   return Math.abs(volume) / 6.0;
 }
 
@@ -60,7 +59,6 @@ function estimateGrams(volumeCm3: number, material: FilamentType, infillPct: num
 
 const fmt = (n: number) => new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(n);
 
-/* -------------------- Auto-orientation helpers (largest flat face down) -------------------- */
 function triArea(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) {
   return b.clone().sub(a).cross(c.clone().sub(a)).length() * 0.5;
 }
@@ -91,13 +89,12 @@ function computeBaseAreaAndHeight(geo: THREE.BufferGeometry) {
     if (!onBottom) continue;
 
     n.copy(b).sub(a).cross(c.clone().sub(a)).normalize();
-    if (n.y > 0.7071) baseArea += triArea(a, b, c); // ~cos(45°)
+    if (n.y > 0.7071) baseArea += triArea(a, b, c);
   }
   const height = maxY - minY;
   return { baseArea, height };
 }
 
-// Rotate geometry so a large flat face is on the bed; center XZ; drop Y to 0
 function autoOrientForPrint(geo: THREE.BufferGeometry) {
   const pos = geo.getAttribute("position") as THREE.BufferAttribute;
   const original = new Float32Array(pos.array as ArrayLike<number>);
@@ -142,7 +139,6 @@ function autoOrientForPrint(geo: THREE.BufferGeometry) {
 
       applyTransform(p, s);
 
-      // center XZ to stabilize scoring
       geo.computeBoundingBox();
       const bb = geo.boundingBox!;
       const cx = (bb.min.x + bb.max.x) / 2;
@@ -171,7 +167,7 @@ function autoOrientForPrint(geo: THREE.BufferGeometry) {
   }
 }
 
-/* -------------------- Adaptive camera fit -------------------- */
+
 function fitCameraToBox(
   camera: THREE.PerspectiveCamera,
   controls: OrbitControlsType,
@@ -203,7 +199,6 @@ function fitCameraToBox(
   controls.maxDistance = dist * 5;
   controls.update();
 }
-/* ------------------------------------------------------------------------------------------- */
 
 interface StlItem {
   id: string;
@@ -227,7 +222,7 @@ export default function StlQuotePage() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ==== 3D Viewer refs ====
+  // Viewer refs
   const mountRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -251,7 +246,7 @@ export default function StlQuotePage() {
             const geometry = loader.parse(arrayBuffer);
             const geo = geometry.toNonIndexed();
             convertGeometryUnitsToCm(geo, unit);
-            autoOrientForPrint(geo); // orient + ground for pricing geometry
+            autoOrientForPrint(geo);
             const volumeCm3 = cm3FromGeometry(geo);
             resolve({ id: crypto.randomUUID(), name: file.name, file, unit, volumeCm3 });
           } catch (e: any) {
@@ -266,7 +261,6 @@ export default function StlQuotePage() {
     const newOnes: StlItem[] = [];
     for (const f of Array.from(files)) {
       const unitGuess: StlUnit = "mm";
-      // eslint-disable-next-line no-await-in-loop
       const parsed = await loadOne(f, unitGuess);
       newOnes.push(parsed);
     }
@@ -283,7 +277,7 @@ export default function StlQuotePage() {
   const totalGrams = useMemo(() => estimateGrams(totalVolumeCm3, filament, infill), [totalVolumeCm3, filament, infill]);
   const filamentCost = useMemo(() => totalGrams * pricePerGramINR(filament), [totalGrams, filament]);
 
-  // 💰 Expanded pricing breakdown
+
   const pricingBreakdown = useMemo(() => {
     const partsFee = PER_PART_FEE_INR * items.length;
     const baseSubtotal = BASE_FEE_INR + filamentCost + finishCost + SLICER_SETUP_FEE_INR + partsFee;
@@ -315,7 +309,7 @@ export default function StlQuotePage() {
         const geometry = loader.parse(fr.result as ArrayBuffer);
         const geo = geometry.toNonIndexed();
         convertGeometryUnitsToCm(geo, target.unit);
-        autoOrientForPrint(geo); // re-orient for pricing
+        autoOrientForPrint(geo);
         const volumeCm3 = cm3FromGeometry(geo);
         setItems((prev) => prev.map((x) => (x.id === id ? { ...x, volumeCm3 } : x)));
       } catch {
@@ -359,10 +353,8 @@ export default function StlQuotePage() {
     localStorage.setItem("stl_quote_order", JSON.stringify(payload));
     window.dispatchEvent(new CustomEvent("stl-quote:ready-for-payment", { detail: payload }));
     alert("Order details saved. Redirecting to payment...");
-    // navigate("/checkout")
   };
 
-  // ========= 3D VIEWER: init one time =========
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
@@ -374,7 +366,7 @@ export default function StlQuotePage() {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
-    // three r165+: use outputColorSpace
+
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -410,7 +402,6 @@ export default function StlQuotePage() {
       cameraRef.current.aspect = w / h;
       cameraRef.current.updateProjectionMatrix();
 
-      // Re-fit on resize if a mesh exists
       if (meshRef.current) {
         const g = meshRef.current.geometry as THREE.BufferGeometry;
         g.computeBoundingBox();
@@ -440,7 +431,7 @@ export default function StlQuotePage() {
         if (anyObj.geometry) anyObj.geometry.dispose();
         if (anyObj.material) {
           const m = anyObj.material as THREE.Material | THREE.Material[];
-          if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+          if (Array.isArray(m)) m.forEach((mm: THREE.Material) => mm.dispose());
           else m.dispose();
         }
       });
@@ -453,7 +444,6 @@ export default function StlQuotePage() {
     };
   }, []);
 
-  // ========= 3D VIEWER: load selected STL =========
   useEffect(() => {
     if (!selectedId || !sceneRef.current) return;
     const item = items.find((x) => x.id === selectedId);
@@ -472,12 +462,10 @@ export default function StlQuotePage() {
       try {
         const geo = loader.parse(fr.result as ArrayBuffer).toNonIndexed();
 
-        // units -> meters for display
         const unitScale = item.unit === "mm" ? 0.001 : item.unit === "cm" ? 0.01 : 1;
         geo.scale(unitScale, unitScale, unitScale);
         geo.computeVertexNormals();
 
-        // orient like "as printed" and ground on bed for preview
         autoOrientForPrint(geo);
 
         const mat = new THREE.MeshStandardMaterial({ color: 0x607d8b, metalness: 0.1, roughness: 0.75 });
@@ -485,7 +473,6 @@ export default function StlQuotePage() {
         sceneRef.current!.add(mesh);
         meshRef.current = mesh;
 
-        // adaptive camera fit
         geo.computeBoundingBox();
         fitCameraToBox(cameraRef.current!, controlsRef.current!, geo.boundingBox!, 1.35);
       } catch (e) {
@@ -502,18 +489,11 @@ export default function StlQuotePage() {
         <p className="text-slate-600 mb-6">All processing happens in your browser. We don’t upload your files—your CPU/RAM does the work.</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* LEFT: Viewer + Dropzone + Files */}
           <div className="bg-white rounded-2xl shadow p-5">
-            {/* 3D Viewer */}
             <div className="mb-4" style={{ height: 340 }}>
-              <div
-                ref={mountRef}
-                className="w-full h-full rounded-xl overflow-hidden border"
-                style={{ background: "#f8fafc" }}
-              />
+              <div ref={mountRef} className="w-full h-full rounded-xl overflow-hidden border" style={{ background: "#f8fafc" }} />
             </div>
 
-            {/* Dropzone */}
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -525,19 +505,11 @@ export default function StlQuotePage() {
             >
               <div className="text-lg font-medium">Drop STL files here or click to browse</div>
               <div className="text-sm text-slate-500">Multiple files supported (.stl)</div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".stl"
-                multiple
-                onChange={(e) => handleFiles(e.target.files)}
-                className="hidden"
-              />
+              <input ref={fileInputRef} type="file" accept=".stl" multiple onChange={(e) => handleFiles(e.target.files)} className="hidden" />
             </div>
 
             {busy && <div className="mt-4 text-sm text-blue-600">Parsing STL(s)…</div>}
 
-            {/* File list */}
             <ul className="mt-4 space-y-3">
               {items.map((it) => (
                 <li
@@ -551,9 +523,7 @@ export default function StlQuotePage() {
                       {it.error ? (
                         <div className="text-sm text-red-600">{it.error}</div>
                       ) : (
-                        <div className="text-sm text-slate-600">
-                          Volume: {it.volumeCm3 ? `${fmt(it.volumeCm3)} cm³` : "…"}
-                        </div>
+                        <div className="text-sm text-slate-600">Volume: {it.volumeCm3 ? `${fmt(it.volumeCm3)} cm³` : "…"}</div>
                       )}
                     </div>
                     <button
@@ -587,7 +557,6 @@ export default function StlQuotePage() {
             </ul>
           </div>
 
-          {/* RIGHT: Options & Pricing */}
           <div className="bg-white rounded-2xl shadow p-5">
             <h2 className="text-xl font-semibold mb-3">Options</h2>
 
@@ -638,7 +607,7 @@ export default function StlQuotePage() {
                 <div>Slicer / setup: <strong>₹{fmt(SLICER_SETUP_FEE_INR)}</strong></div>
                 <div>Per-part fee ({items.length}×₹{fmt(PER_PART_FEE_INR)}): <strong>₹{fmt(pricingBreakdown.partsFee)}</strong></div>
                 <div>Total volume: <strong>{fmt(totalVolumeCm3)} cm³</strong></div>
-                <div>Est. total grams: <strong>{fmt(totalGrams)} g</strong></div>
+                <div>Est. total grams: <strong>₹{fmt(totalGrams)} g</strong></div>
                 <div>Filament cost (₹/g = {fmt(pricePerGramINR(filament))}): <strong>₹{fmt(filamentCost)}</strong></div>
                 {finishCost > 0 && <div>ABS glossy finish: <strong>₹{fmt(finishCost)}</strong></div>}
 

@@ -1,9 +1,10 @@
 // src/components/StlViewer.tsx
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls.js";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls";
+
 
 export type StlUnit = "mm" | "cm" | "m";
 
@@ -45,7 +46,7 @@ export default function StlViewer({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
-    // three r165+: use outputColorSpace instead of outputEncoding
+
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -91,10 +92,14 @@ export default function StlViewer({
       ro.disconnect();
       controls.dispose();
       renderer.dispose();
-      scene.traverse((o) => {
-        const anyO = o as any;
-        if (anyO.geometry) anyO.geometry.dispose();
-        if (anyO.material) Array.isArray(anyO.material) ? anyO.material.forEach((m: any) => m.dispose()) : anyO.material.dispose();
+      scene.traverse((obj: THREE.Object3D) => {
+        const anyObj = obj as any;
+        if (anyObj.geometry) anyObj.geometry.dispose();
+        if (anyObj.material) {
+          const m = anyObj.material as THREE.Material | THREE.Material[];
+          if (Array.isArray(m)) m.forEach((mm: THREE.Material) => mm.dispose());
+          else m.dispose();
+        }
       });
       mount.removeChild(renderer.domElement);
       sceneRef.current = null;
@@ -141,7 +146,7 @@ export default function StlViewer({
         const cam = cameraRef.current!;
         const controls = controlsRef.current!;
         const maxDim = Math.max(size.x, size.y, size.z);
-        const fitDist = Math.max(0.2, maxDim) * 2.2;
+        const fitDist = maxDim * 2.2;
         cam.position.set(fitDist, fitDist, fitDist);
         cam.near = Math.max(fitDist / 1000, 0.01);
         cam.far = fitDist * 1000;
