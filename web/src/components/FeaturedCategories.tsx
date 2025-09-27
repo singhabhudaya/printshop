@@ -1,10 +1,17 @@
-// src/components/FeaturedCategories.tsx
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+// /web/src/components/FeaturedCategories.tsx
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, type Variants } from "framer-motion";
 import { ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 
 /** ---------- Types (UI) ---------- */
 type UIImage = { src: string; alt?: string };
+type UICategory = {
+  id: string;
+  name: string;
+  slug: string;
+  image?: string;
+  __products?: UIProduct[];
+};
 type UIProduct = {
   id: string;
   name: string;
@@ -12,13 +19,6 @@ type UIProduct = {
   handle?: string;
   price: number;
   compareAtPrice?: number;
-};
-type UICategory = {
-  id: string;
-  name: string;
-  slug: string;
-  image?: string;
-  __products?: UIProduct[];
 };
 
 /** ---------- ENV ---------- */
@@ -30,21 +30,21 @@ const USING_SHOPIFY = !!STOREFRONT_TOKEN;
 
 /** ---------- Dynamic settings ---------- */
 const MAX_COLLECTIONS = 8; // how many collections to show
-const EXCLUDE_HANDLES = new Set<string>(["frontpage"]);
+const EXCLUDE_HANDLES = new Set<string>([
+  "frontpage", // Shopify's default collection
+]);
 
 /** ---------- Helpers ---------- */
 const toSlug = (s: string) =>
   s.toLowerCase().trim().replace(/[^\p{Letter}\p{Number}]+/gu, "-").replace(/^-+|-+$/g, "");
-
 function shopifyCollectionUrl(slugOrName: string) {
   const slug = toSlug(slugOrName);
   return `${SHOPIFY_BASE}/collections/${encodeURIComponent(slug)}`;
 }
-
 function toImages(cat: UICategory): UIImage[] {
   if (cat.image) {
     const base = { src: cat.image, alt: cat.name };
-    return [0, 1, 2, 3].map((i: number) => ({ ...base, src: `${base.src}?v=${i}` }));
+    return [0, 1, 2, 3].map((i) => ({ ...base, src: `${base.src}?v=${i}` }));
   }
   return [];
 }
@@ -59,7 +59,7 @@ const SHOPIFY_GRAPHQL = USING_SHOPIFY
   ? `${SHOPIFY_BASE.replace(/^https?:\/\//, "https://")}/api/2024-07/graphql.json`
   : "";
 
-async function shopifyGql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+async function shopifyGql<T>(query: string, variables?: Record<string, any>): Promise<T> {
   const res = await fetch(SHOPIFY_GRAPHQL, {
     method: "POST",
     headers: {
@@ -75,7 +75,7 @@ async function shopifyGql<T>(query: string, variables?: Record<string, unknown>)
 
 /** ---------- Collections + ALL products (paginated) ---------- */
 
-// 1) fetch only the collections
+// 1) fetch only the collections (fast)
 async function fetchCollectionsOnly(limitCollections: number) {
   const q = /* GraphQL */ `
     query Collections($first: Int!) {
@@ -111,26 +111,26 @@ async function fetchAllProductsForCollection(handle: string, pageSize = 250) {
       }
     }
   `;
-
-  // Narrowed types for pagination
-  type Edge = { cursor: string; node: any };
-  type ProductsPage = { edges: Edge[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
-  type T = { collectionByHandle: null | { products: ProductsPage } };
+  type T = {
+    collectionByHandle: null | {
+      products: {
+        edges: Array<{ cursor: string; node: any }>;
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+      };
+    };
+  };
 
   const products: any[] = [];
   let cursor: string | null = null;
   let hasNext = true;
 
   while (hasNext) {
-    const data: T = await shopifyGql<T>(q, { handle, first: pageSize, cursor });
-    const list: ProductsPage | undefined = data.collectionByHandle?.products;
+    const list = (await shopifyGql<T>(q, { handle, first: pageSize, cursor })).collectionByHandle?.products;
     if (!list) break;
-
-    products.push(...list.edges.map((e: Edge) => e.node));
+    products.push(...list.edges.map((e: { node: any }) => e.node));
     hasNext = list.pageInfo.hasNextPage;
     cursor = list.pageInfo.endCursor;
   }
-
   return products;
 }
 
@@ -156,6 +156,7 @@ function ProductCard({ p }: { p: UIProduct }) {
       className="group rounded-2xl bg-white/70 hover:bg-white transition shadow-sm hover:shadow-md border border-black/5 overflow-hidden"
       href={href}
     >
+      {/* Keep a pleasant portrait ratio; the width is controlled by the parent container */}
       <div className="relative aspect-[4/5] overflow-hidden">
         <img
           loading="lazy"
@@ -188,7 +189,7 @@ function ProductCard({ p }: { p: UIProduct }) {
 
 /** ---------- Fallback tile (if a collection has 0 products) ---------- */
 function OldCarouselFallback({ category }: { category: UICategory }) {
-  const images = useMemo<UIImage[]>(() => toImages(category), [category]);
+  const images = useMemo(() => toImages(category), [category]);
   const href = shopifyCollectionUrl(category.slug || category.name);
   if (!images.length) {
     return (
@@ -221,7 +222,7 @@ function OldCarouselFallback({ category }: { category: UICategory }) {
 
 /** ---------- Category section (grid ≤3, swipe >3) ---------- */
 function CategoryWithProducts({ category }: { category: UICategory }) {
-  const items: UIProduct[] = category.__products ?? [];
+  const items = category.__products ?? [];
   const collectionHref = shopifyCollectionUrl(category.slug || category.name);
 
   // swipe rail when more than 3
@@ -244,11 +245,12 @@ function CategoryWithProducts({ category }: { category: UICategory }) {
         </a>
       </div>
 
-      {/* <= 3: normal grid; > 3: horizontal swipe rail with 2/3 visible */}
+      {/* <= 3: wider grid on mobile; > 3: horizontal swipe with wide tiles on mobile */}
       {!moreThanThree ? (
-        <div className="mt-4 grid grid-cols-3 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4 px-4 sm:px-0">
+        /* ⬇️ 2-up on mobile (wider cards), 3-up on md+ */
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 px-4 sm:px-0">
           {items.length > 0 ? (
-            items.map((p: UIProduct) => <ProductCard key={p.id} p={p} />)
+            items.map((p) => <ProductCard key={p.id} p={p} />)
           ) : (
             <OldCarouselFallback category={category} />
           )}
@@ -277,13 +279,20 @@ function CategoryWithProducts({ category }: { category: UICategory }) {
               flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-px-4 px-4 -mx-4 pb-1
               [scrollbar-width:none] [-ms-overflow-style:none]
             "
-            style={{ WebkitOverflowScrolling: "touch" } as CSSProperties}
+            style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
           >
             {/* hide webkit scrollbar */}
             <style>{`.snap-x::-webkit-scrollbar{ display:none }`}</style>
 
-            {items.map((p: UIProduct) => (
-              <div key={p.id} className="snap-start flex-none w-[33.333%] max-w-[420px]">
+            {items.map((p) => (
+              <div
+                key={p.id}
+                className="
+                  snap-start flex-none
+                  w-[80%] sm:w-[45%] md:w-[33.333%]
+                  max-w-[420px]
+                "
+              >
                 <ProductCard p={p} />
               </div>
             ))}
@@ -294,17 +303,10 @@ function CategoryWithProducts({ category }: { category: UICategory }) {
   );
 }
 
-/** ---------- Helpers (typed) ---------- */
-function chunks<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
-
 /** ---------- Main ---------- */
 export default function FeaturedCategories() {
   const [categories, setCategories] = useState<UICategory[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -312,24 +314,26 @@ export default function FeaturedCategories() {
       try {
         if (USING_SHOPIFY) {
           // 1) load latest collections
-          const collections: any[] = await fetchCollectionsOnly(MAX_COLLECTIONS);
+          const collections = await fetchCollectionsOnly(MAX_COLLECTIONS);
           const filtered = collections.filter((c: any) => !EXCLUDE_HANDLES.has(c.handle));
 
           // 2) fetch ALL products for each collection, with gentle concurrency
-          const grouped = chunks(filtered, 3); // 3 collections at a time
+          const chunks = (arr: any[], size: number) =>
+            arr.reduce((acc, _, i) => (i % size ? acc : [...acc, arr.slice(i, i + size)]), [] as any[][]);
 
           const ui: UICategory[] = [];
-          for (const group of grouped) {
-            const results = await Promise.allSettled<any[]>(
-              group.map((c: any) => fetchAllProductsForCollection(c.handle))
+          for (const group of chunks(filtered, 3)) {
+            // 3 collections at a time
+            const results = await Promise.allSettled(
+              group.map((c: { handle: string }) => fetchAllProductsForCollection(c.handle))
             );
-            results.forEach((r: PromiseSettledResult<any[]>, i: number) => {
-              const c = group[i] as any;
+            results.forEach((r, i) => {
+              const c = group[i];
               const nodes = r.status === "fulfilled" ? r.value : [];
               ui.push({
-                id: String(c.id),
-                name: String(c.title),
-                slug: String(c.handle),
+                id: c.id,
+                name: c.title,
+                slug: c.handle,
                 image: c.image?.url ?? undefined,
                 __products: nodes.map(toUIProductFromShopify),
               });
@@ -366,13 +370,14 @@ export default function FeaturedCategories() {
 
         <div className="mt-10">
           {isLoading
-            ? Array.from({ length: 2 }).map((_, i: number) => (
+            ? Array.from({ length: 2 }).map((_, i) => (
                 <section key={i} className="mb-8 sm:mb-10">
                   <div className="px-4 sm:px-0">
                     <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-3" />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 px-4 sm:px-0">
-                    {Array.from({ length: 4 }).map((__, k: number) => (
+                  {/* ⬇️ skeleton matches 2-up mobile / 3-up md+ */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 px-4 sm:px-0">
+                    {[...Array(6)].map((_, k) => (
                       <div
                         key={k}
                         className="h-64 rounded-2xl bg-gray-100 animate-pulse border border-black/5"
@@ -381,9 +386,7 @@ export default function FeaturedCategories() {
                   </div>
                 </section>
               ))
-            : categories.map((cat: UICategory) => (
-                <CategoryWithProducts key={cat.id} category={cat} />
-              ))}
+            : categories.map((cat) => <CategoryWithProducts key={cat.id} category={cat} />)}
         </div>
       </div>
     </section>

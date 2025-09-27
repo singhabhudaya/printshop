@@ -1,0 +1,184 @@
+// src/components/StlViewer.tsx
+import React, { useEffect, useRef } from "react";
+import * as THREE from "three";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
+export type StlUnit = "mm" | "cm" | "m";
+
+type Props = {
+  file: File;                 // STL file (binary)
+  unit?: StlUnit;             // default "mm"
+  autoRotate?: boolean;       // default true
+  background?: string;        // CSS color, default "#f8fafc"
+};
+
+export default function StlViewer({
+  file,
+  unit = "mm",
+  autoRotate = true,
+  background = "#f8fafc",
+}: Props) {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const meshRef = useRef<THREE.Mesh | null>(null);
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const mount = mountRef.current;
+    const width = mount.clientWidth;
+    const height = mount.clientHeight;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(background);
+    sceneRef.current = scene;
+
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    camera.position.set(2, 2, 2);
+    cameraRef.current = camera;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    mount.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.autoRotate = autoRotate;
+    controls.autoRotateSpeed = 1.0;
+    controlsRef.current = controls;
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+    hemi.position.set(0, 1, 0);
+    scene.add(hemi);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(5, 10, 7.5);
+    dir.castShadow = false;
+    scene.add(dir);
+
+    // Ground grid (subtle)
+    const grid = new THREE.GridHelper(10, 20, 0xcccccc, 0xeeeeee);
+    grid.position.y = -0.001;
+    scene.add(grid);
+
+    // Handle resize
+    const onResize = () => {
+      const w = mount.clientWidth;
+      const h = mount.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    };
+    const ro = new ResizeObserver(onResize);
+    ro.observe(mount);
+
+    let req = 0;
+    const tick = () => {
+      controls.update();
+      renderer.render(scene, camera);
+      req = requestAnimationFrame(tick);
+    };
+    tick();
+
+    return () => {
+      cancelAnimationFrame(req);
+      ro.disconnect();
+      controls.dispose();
+      renderer.dispose();
+      // clean scene
+      scene.traverse((obj) => {
+        if ((obj as any).geometry) (obj as any).geometry.dispose();
+        if ((obj as any).material) {
+          const m = (obj as any).material;
+          if (Array.isArray(m)) m.forEach((mm) => mm.dispose());
+          else m.dispose();
+        }
+      });
+      mount.removeChild(renderer.domElement);
+      sceneRef.current = null;
+      rendererRef.current = null;
+      controlsRef.current = null;
+      cameraRef.current = null;
+    };
+  }, [autoRotate, background]);
+
+  // Load STL whenever file/unit changes
+  useEffect(() => {
+    if (!sceneRef.current || !file) return;
+    const scene = sceneRef.current;
+
+    // remove previous mesh
+    if (meshRef.current) {
+      scene.remove(meshRef.current);
+      (meshRef.current.geometry as any)?.dispose?.();
+      (meshRef.current.material as any)?.dispose?.();
+      meshRef.current = null;
+    }
+
+    const loader = new STLLoader();
+    const fr = new FileReader();
+
+    fr.onload = () => {
+      try {
+        const geo = loader.parse(fr.result as ArrayBuffer).toNonIndexed();
+        // Scale units into centimeters for sanity, then to meters for display
+        const unitScale = unit === "mm" ? 0.001 : unit === "cm" ? 0.01 : 1; // -> meters
+        geo.scale(unitScale, unitScale, unitScale);
+        geo.computeVertexNormals();
+        geo.computeBoundingBox();
+
+        // Center & fit
+        const box = geo.boundingBox!;
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        geo.translate(-center.x, -center.y, -center.z);
+
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x607d8b,
+          metalness: 0.1,
+          roughness: 0.7,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        scene.add(mesh);
+        meshRef.current = mesh;
+
+        // Reframe camera
+        const cam = cameraRef.current!;
+        const controls = controlsRef.current!;
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const fitDist = maxDim * 2.2;
+        cam.position.set(fitDist, fitDist, fitDist);
+        cam.near = Math.max(fitDist / 1000, 0.01);
+        cam.far = fitDist * 1000;
+        cam.updateProjectionMatrix();
+        controls.target.set(0, 0, 0);
+        controls.update();
+      } catch (e) {
+        console.warn("STL parse failed:", e);
+      }
+    };
+    fr.readAsArrayBuffer(file);
+
+    // cleanup handled by outer effect
+  }, [file, unit]);
+
+  return (
+    <div
+      ref={mountRef}
+      className="w-full h-full rounded-xl overflow-hidden border"
+      style={{ background }}
+    />
+  );
+}
