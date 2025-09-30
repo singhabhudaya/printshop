@@ -1,5 +1,5 @@
 // src/main.tsx
-import { StrictMode } from "react";
+import { StrictMode, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
@@ -19,16 +19,20 @@ import Disputes from "./pages/admin/Disputes";
 import ProtectedRoute from "./state/ProtectedRoute";
 import { AuthProvider } from "./state/AuthContext";
 
-// 🔽 Policy & static pages
+// Policy & static
 import TermsAndConditions from "./pages/termsandconditions";
 import PrivacyPolicy from "./pages/privacypolicy";
 import CancellationRefund from "./pages/cancellationrefund";
 import ShippingDelivery from "./pages/shippingdelivery";
 import ContactUs from "./pages/contactus";
-import AboutUs from "./pages/aboutus"; // ✅ new
+import AboutUs from "./pages/aboutus";
 
-// 🔽 NEW: STL Upload & Quote page
+// STL upload/quote (existing)
 import StlQuotePage from "./pages/StlQuotePage";
+
+// NEW: Image → STL page (lazy for better bundle)
+// If you prefer non-lazy, replace with: import ImageToSTLPage from "./pages/ImageToSTLPage";
+const ImageToSTLPage = lazy(() => import("./pages/ImageToSTLPage"));
 
 const router = createBrowserRouter([
   {
@@ -84,16 +88,25 @@ const router = createBrowserRouter([
         ),
       },
 
-      // 🔽 Public routes
+      // Public routes
       { path: "termsandconditions", element: <TermsAndConditions /> },
       { path: "privacypolicy", element: <PrivacyPolicy /> },
       { path: "cancellationrefund", element: <CancellationRefund /> },
       { path: "shippingdelivery", element: <ShippingDelivery /> },
       { path: "contactus", element: <ContactUs /> },
-      { path: "aboutus", element: <AboutUs /> }, // ✅ new route
+      { path: "aboutus", element: <AboutUs /> },
 
-      // 🔽 NEW public route for STL uploads
       { path: "custom-upload", element: <StlQuotePage /> },
+
+      // NEW public route: Image → STL
+      {
+        path: "image-to-stl",
+        element: (
+          <Suspense fallback={<div className="p-6">Loading…</div>}>
+            <ImageToSTLPage />
+          </Suspense>
+        ),
+      },
     ],
   },
 ]);
