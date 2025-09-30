@@ -1,21 +1,36 @@
+# netlify.toml
+
 [build]
-  base = "web"
+  base    = "web"
   command = "npm ci && npm run build"
   publish = "dist"
 
+# If you use Netlify Functions (optional)
+[functions]
+  directory = "netlify/functions"
+
 [build.environment]
+  # Use 18 or 20 — both fine for Vite/Three.
   NODE_VERSION = "18"
 
-# (Optional) Single Page App routing for React Router
+# --- Redirects ---
+
+# Route /api/* to Netlify Functions
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from   = "/api/*"
+  to     = "/.netlify/functions/:splat"
   status = 200
 
-# (Optional) Basic security headers
+# Single Page App routing for React Router
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# --- Basic security headers (optional but recommended) ---
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "SAMEORIGIN"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options           = "SAMEORIGIN"
+    X-Content-Type-Options    = "nosniff"
+    Referrer-Policy           = "strict-origin-when-cross-origin"

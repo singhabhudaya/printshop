@@ -25,13 +25,19 @@ const navItems: NavItem[] = [
 ];
 
 function categoryHref(handle: string) {
-  return SHOP_BASE ? `${SHOP_BASE}/collections/${encodeURIComponent(handle)}` : `/category/${handle}`;
+  return SHOP_BASE
+    ? `${SHOP_BASE}/collections/${encodeURIComponent(handle)}`
+    : `/category/${handle}`;
 }
 function loginHref() {
   return SHOP_BASE ? `${SHOP_BASE}/account/login` : `/auth/login`;
 }
 function cartHref() {
   return SHOP_BASE ? `${SHOP_BASE}/cart` : `/cart`;
+}
+// Always internal route for our app page
+function imageToStlHref() {
+  return "/image-to-stl";
 }
 
 export default function Header() {
@@ -41,7 +47,9 @@ export default function Header() {
   // lock page scroll when mobile menu is open
   useEffect(() => {
     document.body.style.overflow = isMenuOpen ? "hidden" : "unset";
-    return () => { document.body.style.overflow = "unset"; };
+    return () => {
+      document.body.style.overflow = "unset";
+    };
   }, [isMenuOpen]);
 
   const closeMenu = () => setIsMenuOpen(false);
@@ -74,6 +82,11 @@ export default function Header() {
                 </Link>
               );
             })}
+
+            {/* NEW: Image → STL link (always internal) */}
+            <Link to={imageToStlHref()} className={navItemClasses}>
+              Image → STL
+            </Link>
           </nav>
 
           {/* Right actions */}
@@ -102,10 +115,13 @@ export default function Header() {
               <a
                 href={loginHref()}
                 className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-all ring-1 ring-[#E8DCCD]"
-                // gradient bronze → deep bronze
                 style={{ backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)` }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE_DEEP} 0%, ${BRONZE_DEEP} 100%)`)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`)}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE_DEEP} 0%, ${BRONZE_DEEP} 100%)`)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`)
+                }
               >
                 Login
               </a>
@@ -114,8 +130,12 @@ export default function Header() {
                 to={loginHref()}
                 className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-all ring-1 ring-[#E8DCCD]"
                 style={{ backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)` }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE_DEEP} 0%, ${BRONZE_DEEP} 100%)`)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`)}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE_DEEP} 0%, ${BRONZE_DEEP} 100%)`)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`)
+                }
               >
                 Login
               </Link>
@@ -153,6 +173,16 @@ export default function Header() {
                 </Link>
               );
             })}
+
+            {/* NEW: Image → STL (mobile) */}
+            <Link
+              to={imageToStlHref()}
+              onClick={closeMenu}
+              className="px-4 py-3 text-base font-medium rounded-lg"
+              style={{ backgroundColor: CHAMPAGNE as string, color: BRONZE_DEEP as string }}
+            >
+              Image → STL
+            </Link>
 
             <div className="border-t pt-4 mt-2">
               {user ? null : SHOP_BASE ? (
