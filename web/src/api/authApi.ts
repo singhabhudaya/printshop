@@ -1,21 +1,35 @@
-
+// web/src/api/authApi.ts
 import axiosClient from "./axiosClient";
-import { User } from "../types";
+import type { User } from "../types";
+
+type AuthResponse = { token: string; user: User };
+type MeResponse = { user: User };
 
 export const authApi = {
-  register: async (payload: { name: string; email: string; password: string; role?: "buyer" | "seller"; sellerTier?: 1 | 2; }) => {
-    const { data } = await axiosClient.post<{ token: string; user: User }>("/auth/register", payload);
+  async register(payload: {
+    name: string;
+    email: string;
+    password: string;
+    role?: "buyer" | "seller";
+    sellerTier?: 1 | 2;
+  }): Promise<AuthResponse> {
+    const { data } = await axiosClient.post<AuthResponse>("/auth/register", payload);
     localStorage.setItem("token", data.token);
-    return data;
+    return data; // { token, user }
   },
-  login: async (payload: { email: string; password: string }) => {
-    const { data } = await axiosClient.post<{ token: string; user: User }>("/auth/login", payload);
+
+  async login(payload: { email: string; password: string }): Promise<AuthResponse> {
+    const { data } = await axiosClient.post<AuthResponse>("/auth/login", payload);
     localStorage.setItem("token", data.token);
-    return data;
+    return data; // { token, user }
   },
-  me: async () => {
-    const { data } = await axiosClient.get<User>("/auth/me");
-    return data;
+
+  async me(): Promise<User> {
+    const { data } = await axiosClient.get<MeResponse>("/auth/me");
+    return data.user; // <-- AuthContext expects the user object
   },
-  logout: () => localStorage.removeItem("token"),
+
+  logout(): void {
+    localStorage.removeItem("token");
+  },
 };
