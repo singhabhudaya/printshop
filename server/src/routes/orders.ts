@@ -1,12 +1,13 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { Types } from "mongoose";
 import { auth, requireRole } from "../middleware/auth.js";
+import { Product } from "../models/Product.js";
+import { Order } from "../models/Order.js";
 
-const prisma = new PrismaClient();
 const router = Router();
 
-// Local enums (runtime-safe) — match Prisma schema
+// Enums to mirror your previous Prisma-side types
 const OrderStatusEnum = z.enum(["created", "confirmed", "shipped", "delivered", "cancelled"]);
 const PaymentStatusEnum = z.enum(["pending", "paid", "failed", "refunded"]);
 
@@ -14,7 +15,7 @@ const CreateOrder = z.object({
   items: z
     .array(
       z.object({
-        productId: z.string(),
+        productId: z.string().min(1),
         quantity: z.number().int().positive(),
       })
     )
@@ -33,7 +34,7 @@ const UpdateOrder = z
 type OrderItemSnap = {
   productId: string;
   title: string;
-  price: number; // numeric snapshot
+  price: number;
   quantity: number;
   sellerId: string;
 };
@@ -45,134 +46,149 @@ function paginate(query: any) {
   return { page, limit, skip };
 }
 
-/** POST /api/orders  (buyer or admin) */
-router.post("/", auth, requireRole("buyer", "admin"), async (req, res) => {
-  const parsed = CreateOrder.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "ValidationError", details: parsed.error.flatten() });
-  }
+/** POST /api/orders  (buyer or admin)
+ *  Body: { items: [{productId, quantity}], paymentMethod?, shippingAddress? }
+ *  - Looks up products
+ *  - Creates JSON snapshot items [{productId,title,price,quantity,sellerId}]
+ *  - Computes amount
+ */
+router.post("/", auth, requireRole("buyer", "admin"), async (req, res, next) => {
+  try {
+    const parsed = CreateOrder.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "ValidationError", details: parsed.error.flatten() });
+    }
 
-  const wanted = parsed.data.items;
+    const wanted = parsed.data.items;
+    const ids = wanted.map((i) => i.productId).filter(Boolean);
+    const objIds = ids.map((s) => new Types.ObjectId(s));
 
-  // Fetch products and build a snapshot (convert Decimal -> number)
-  const products = await prisma.product.findMany({
-    where: { id: { in: wanted.map((i) => i.productId) } },
-    select: { id: true, title: true, price: true, sellerId: true },
-  });
-  const byId = new Map(products.map((p) => [p.id, p]));
+    // fetch products
+    const products = await Product.find(
+      { _id: { $in: objIds } },
+      { _id: 1, title: 1, price: 1, sellerId: 1 }
+    );
 
-  const items: OrderItemSnap[] = [];
-  for (const i of wanted) {
-    const p = byId.get(i.productId);
-    if (!p) return res.status(400).json({ error: `Product not found: ${i.productId}` });
-    items.push({
-      productId: p.id,
-      title: p.title,
-      price: Number(p.price),
-      quantity: i.quantity,
-      sellerId: p.sellerId,
-    });
-  }
+    const byId = new Map(products.map((p) => [String(p._id), p]));
+    const snap: OrderItemSnap[] = [];
 
-  const amount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    for (const i of wanted) {
+      const p = byId.get(i.productId);
+      if (!p) return res.status(400).json({ error: `Product not found: ${i.productId}` });
+      snap.push({
+        productId: String(p._id),
+        title: p.title,
+        price: Number(p.price),
+        quantity: i.quantity,
+        sellerId: String(p.sellerId ?? ""), // ensure string
+      });
+    }
 
-  const order = await prisma.order.create({
-    data: {
-      buyerId: req.user!.id,
-      items: items as any, // jsonb snapshot
+    const amount = snap.reduce((sum, it) => sum + it.price * it.quantity, 0);
+
+    const order = await Order.create({
+      buyerId: req.user!.id, // Mongoose will cast to ObjectId
+      items: snap,
+      amount,
+      paymentMethod: parsed.data.paymentMethod,
+      shippingAddress: parsed.data.shippingAddress,
       status: "created",
       paymentStatus: "pending",
-      amount, // Decimal column accepts number
-    },
-  });
+    });
 
-  res.status(201).json(order);
+    res.status(201).json(order);
+  } catch (e) { next(e); }
 });
 
-/** GET /api/orders/mine (buyer or seller) */
-router.get("/mine", auth, async (req, res) => {
-  const role = req.user!.role;
+/** GET /api/orders/mine (buyer or seller)
+ *  - buyer: orders where buyerId == me
+ *  - seller: orders where any item.sellerId == me
+ */
+router.get("/mine", auth, async (req, res, next) => {
+  try {
+    const role = req.user!.role;
 
-  const all = await prisma.order.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+    if (role === "buyer") {
+      const items = await Order.find({ buyerId: req.user!.id }).sort({ createdAt: -1 });
+      return res.json(items);
+    }
 
-  if (role === "buyer") {
-    const mine = all.filter((o) => o.buyerId === req.user!.id);
-    return res.json(mine);
-  }
+    if (role === "seller") {
+      const me = String(req.user!.id);
+      // items.sellerId is a string snapshot; compare to string form of seller _id
+      const items = await Order.find({ "items.sellerId": me }).sort({ createdAt: -1 });
+      return res.json(items);
+    }
 
-  if (role === "seller") {
-    const mine = all.filter((o) => {
-      const items = (o.items as unknown as OrderItemSnap[]) || [];
-      return items.some((it) => it.sellerId === req.user!.id);
-    });
-    return res.json(mine);
-  }
-
-  return res.status(403).json({ error: "Forbidden" });
+    return res.status(403).json({ error: "Forbidden" });
+  } catch (e) { next(e); }
 });
 
 /** GET /api/orders (admin) with pagination */
-router.get("/", auth, requireRole("admin"), async (req, res) => {
-  const { page, limit, skip } = paginate(req.query);
-  const [items, total] = await Promise.all([
-    prisma.order.findMany({ orderBy: { createdAt: "desc" }, skip, take: limit }),
-    prisma.order.count(),
-  ]);
-  res.json({ page, limit, total, items });
+router.get("/", auth, requireRole("admin"), async (req, res, next) => {
+  try {
+    const { page, limit, skip } = paginate(req.query);
+    const [items, total] = await Promise.all([
+      Order.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Order.countDocuments(),
+    ]);
+    res.json({ page, limit, total, items });
+  } catch (e) { next(e); }
 });
 
 /** GET /api/orders/:id (buyer owns it, seller involved, or admin) */
-router.get("/:id", auth, async (req, res) => {
-  const id = req.params.id;
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) return res.status(404).json({ error: "Not found" });
+router.get("/:id", auth, async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ error: "Not found" });
 
-  const role = req.user!.role;
-  if (role === "admin") return res.json(order);
-  if (role === "buyer" && order.buyerId === req.user!.id) return res.json(order);
-  if (role === "seller") {
-    const items = (order.items as unknown as OrderItemSnap[]) || [];
-    if (items.some((i) => i.sellerId === req.user!.id)) return res.json(order);
-  }
-  return res.status(403).json({ error: "Forbidden" });
+    const role = req.user!.role;
+    if (role === "admin") return res.json(order);
+
+    if (role === "buyer" && String(order.buyerId) === req.user!.id) return res.json(order);
+
+    if (role === "seller") {
+      const involved = (order.items || []).some((i: any) => i.sellerId === req.user!.id);
+      if (involved) return res.json(order);
+    }
+
+    return res.status(403).json({ error: "Forbidden" });
+  } catch (e) { next(e); }
 });
 
-/** PUT /api/orders/:id/status (admin or involved seller) */
-router.put("/:id/status", auth, async (req, res) => {
-  const id = req.params.id;
-  const parsed = UpdateOrder.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "ValidationError", details: parsed.error.flatten() });
-  }
-
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) return res.status(404).json({ error: "Not found" });
-
-  // permission checks
-  if (req.user!.role !== "admin") {
-    if (req.user!.role !== "seller") return res.status(403).json({ error: "Forbidden" });
-    const items = (order.items as unknown as OrderItemSnap[]) || [];
-    const involved = items.some((i) => i.sellerId === req.user!.id);
-    if (!involved) return res.status(403).json({ error: "Forbidden" });
-
-    if (parsed.data.paymentStatus) {
-      return res.status(403).json({ error: "Only admin can change paymentStatus" });
+/** PUT /api/orders/:id/status (admin or involved seller)
+ *  - sellers CANNOT change paymentStatus
+ */
+router.put("/:id/status", auth, async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const parsed = UpdateOrder.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "ValidationError", details: parsed.error.flatten() });
     }
-  }
 
-  // Build a typed patch for Prisma
-  const patch: any = {};
-  if (parsed.data.status) patch.status = parsed.data.status;
-  if (parsed.data.paymentStatus) patch.paymentStatus = parsed.data.paymentStatus;
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ error: "Not found" });
 
-  const updated = await prisma.order.update({
-    where: { id },
-    data: patch,
-  });
+    // permission checks
+    if (req.user!.role !== "admin") {
+      if (req.user!.role !== "seller") return res.status(403).json({ error: "Forbidden" });
+      const involved = (order.items || []).some((i: any) => i.sellerId === req.user!.id);
+      if (!involved) return res.status(403).json({ error: "Forbidden" });
+      if (parsed.data.paymentStatus) {
+        return res.status(403).json({ error: "Only admin can change paymentStatus" });
+      }
+    }
 
-  res.json(updated);
+    // patch
+    const updates: any = {};
+    if (parsed.data.status) updates.status = parsed.data.status;
+    if (parsed.data.paymentStatus) updates.paymentStatus = parsed.data.paymentStatus;
+
+    const updated = await Order.findByIdAndUpdate(id, updates, { new: true });
+    res.json(updated);
+  } catch (e) { next(e); }
 });
 
 export default router;

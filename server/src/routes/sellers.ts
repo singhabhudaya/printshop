@@ -1,75 +1,100 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import { Types } from "mongoose";
 import { auth, requireRole } from "../middleware/auth.js";
+import { User } from "../models/User.js";
+import { Product } from "../models/Product.js";
+import { Order } from "../models/Order.js";
+import { Payout } from "../models/Payout.js";
 
-const prisma = new PrismaClient();
 const router = Router();
 
-/** GET /api/sellers/me (seller dashboard snapshot) */
-router.get("/me", auth, requireRole("seller", "admin"), async (req, res) => {
-  const sellerId = req.user!.role === "admin" ? String(req.query.sellerId || "") : req.user!.id;
-  if (!sellerId) return res.status(400).json({ error: "sellerId is required for admin view" });
+function pickSellerIdFromReq(req: any): string | null {
+  if (req.user?.role === "admin") {
+    const q = String(req.query?.sellerId || "").trim();
+    return q || null;
+  }
+  return req.user?.id || null;
+}
 
-  const [seller, products, orders, payouts] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: sellerId },
-      select: { id: true, name: true, email: true, sellerTier: true, role: true }
-    }),
-    prisma.product.findMany({ where: { sellerId }, orderBy: { createdAt: "desc" } }),
-    prisma.order.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.payout.findMany({ where: { sellerId }, orderBy: { createdAt: "desc" } })
-  ]);
+function asSellerFilter(sellerId: string) {
+  // Product.sellerId is an ObjectId; Order.items[].sellerId is a string snapshot.
+  // For Product/Payout queries: cast to ObjectId when valid.
+  return Types.ObjectId.isValid(sellerId) ? new Types.ObjectId(sellerId) : sellerId;
+}
 
-  if (!seller) return res.status(404).json({ error: "Seller not found" });
+/** GET /api/sellers/me (seller dashboard snapshot)
+ *  Response:
+ *  {
+ *    seller: { id, name, email, sellerTier, role },
+ *    stats: { products, itemsSold, gross },
+ *    products: [...],
+ *    payouts: [...]
+ *  }
+ */
+router.get("/me", auth, requireRole("seller", "admin"), async (req, res, next) => {
+  try {
+    const sellerId = pickSellerIdFromReq(req);
+    if (!sellerId) return res.status(400).json({ error: "sellerId is required for admin view" });
 
-  // compute gross sales from orders containing this seller's items
-  type Item = { price: number; quantity: number; sellerId: string };
-  let gross = 0;
-  let itemsSold = 0;
-  for (const o of orders) {
-    const items = (o.items as unknown as Item[]) || [];
-    for (const it of items) {
-      if (it.sellerId === sellerId) {
-        gross += it.price * it.quantity;
-        itemsSold += it.quantity;
+    const sellerObj = asSellerFilter(sellerId);
+
+    const [seller, products, ordersForSeller, payouts] = await Promise.all([
+      User.findById(sellerObj).select("_id name email sellerTier role"),
+      Product.find({ sellerId: sellerObj }).sort({ createdAt: -1 }),
+      // only pull orders where this seller appears in the snapshot
+      Order.find({ "items.sellerId": String(sellerId) }).sort({ createdAt: -1 }),
+      Payout.find({ sellerId: sellerObj }).sort({ createdAt: -1 })
+    ]);
+
+    if (!seller) return res.status(404).json({ error: "Seller not found" });
+
+    // compute gross & itemsSold from orders containing this seller's items
+    let gross = 0;
+    let itemsSold = 0;
+    for (const o of ordersForSeller) {
+      for (const it of (o.items as any[]) || []) {
+        if (it.sellerId === String(sellerId)) {
+          gross += Number(it.price) * Number(it.quantity);
+          itemsSold += Number(it.quantity);
+        }
       }
     }
-  }
 
-  res.json({
-    seller,
-    stats: {
-      products: products.length,
-      itemsSold,
-      gross
-    },
-    products,
-    payouts
-  });
+    res.json({
+      seller: {
+        id: String(seller._id),
+        name: seller.name,
+        email: seller.email,
+        sellerTier: (seller as any).sellerTier ?? 1,
+        role: seller.role
+      },
+      stats: { products: products.length, itemsSold, gross },
+      products,
+      payouts
+    });
+  } catch (e) { next(e); }
 });
 
 /** GET /api/sellers/products (seller's own products) */
-router.get("/products", auth, requireRole("seller", "admin"), async (req, res) => {
-  const sellerId = req.user!.role === "admin" ? String(req.query.sellerId || "") : req.user!.id;
-  if (!sellerId) return res.status(400).json({ error: "sellerId is required for admin view" });
+router.get("/products", auth, requireRole("seller", "admin"), async (req, res, next) => {
+  try {
+    const sellerId = pickSellerIdFromReq(req);
+    if (!sellerId) return res.status(400).json({ error: "sellerId is required for admin view" });
 
-  const items = await prisma.product.findMany({
-    where: { sellerId },
-    orderBy: { createdAt: "desc" }
-  });
-  res.json(items);
+    const items = await Product.find({ sellerId: asSellerFilter(sellerId) }).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (e) { next(e); }
 });
 
 /** GET /api/sellers/payouts */
-router.get("/payouts", auth, requireRole("seller", "admin"), async (req, res) => {
-  const sellerId = req.user!.role === "admin" ? String(req.query.sellerId || "") : req.user!.id;
-  if (!sellerId) return res.status(400).json({ error: "sellerId is required for admin view" });
+router.get("/payouts", auth, requireRole("seller", "admin"), async (req, res, next) => {
+  try {
+    const sellerId = pickSellerIdFromReq(req);
+    if (!sellerId) return res.status(400).json({ error: "sellerId is required for admin view" });
 
-  const items = await prisma.payout.findMany({
-    where: { sellerId },
-    orderBy: { createdAt: "desc" }
-  });
-  res.json(items);
+    const items = await Payout.find({ sellerId: asSellerFilter(sellerId) }).sort({ createdAt: -1 });
+    res.json(items);
+  } catch (e) { next(e); }
 });
 
 export default router;
