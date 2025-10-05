@@ -1,6 +1,6 @@
 // src/components/Footer.tsx
 import { Link } from "react-router-dom";
-import { Github, Twitter, Instagram, Truck } from "lucide-react"; // Added Truck icon
+import { Github, Twitter, Instagram } from "lucide-react"; // Or any other icons you prefer
 
 const shopLinks = [
   { href: "/category/toys", label: "Toys" },
@@ -11,6 +11,7 @@ const shopLinks = [
 
 const companyLinks = [
   { href: "/aboutus", label: "About Us" },
+
   // { href: "/support", label: "Support" }, // keep here if you have a route
 ];
 
@@ -39,8 +40,9 @@ export default function Footer() {
             <Link to="/" className="text-xl font-bold tracking-tight">
               Printing<span className="text-[#A47C5B]">Muse</span>
             </Link>
-            <p className="mt-2 text-sm text-gray-500"></p>
-
+            <p className="mt-2 text-sm text-gray-500">
+              
+            </p>
             <div className="mt-4 flex space-x-4">
               {socialLinks.map((social) => (
                 <a
@@ -117,17 +119,6 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
-          </div>
-        </div>
-
-        {/* Shipping Info Strip */}
-        <div className="mt-10">
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-            <Truck className="h-5 w-5 text-gray-700" aria-hidden="true" />
-            <p className="text-sm sm:text-base text-gray-700">
-              We usually pack, ship & deliver in{" "}
-              <span className="font-semibold">0–7 days</span> across India.
-            </p>
           </div>
         </div>
 

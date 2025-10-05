@@ -1,13 +1,10 @@
 // src/components/Header.tsx
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";
 import { Menu, X, ShoppingCart } from "lucide-react";
 
-/**
- * Set VITE_SHOP_ORIGIN (e.g., https://shop.printingmuse.com) to send header links to Shopify.
- * If not set, links fall back to internal routes.
- */
+/** Set VITE_SHOP_ORIGIN (e.g., https://shop.printingmuse.com) to send header links to Shopify. */
 const SHOP_BASE = import.meta.env.VITE_SHOP_ORIGIN as string | undefined;
 
 // Premium palette
@@ -32,6 +29,10 @@ function categoryHref(handle: string) {
 function loginHref() {
   return SHOP_BASE ? `${SHOP_BASE}/account/login` : `/auth/login`;
 }
+function registerHref() {
+  // Shopify signup page is /account/register
+  return SHOP_BASE ? `${SHOP_BASE}/account/register` : `/auth/register`;
+}
 function cartHref() {
   return SHOP_BASE ? `${SHOP_BASE}/cart` : `/cart`;
 }
@@ -41,8 +42,11 @@ function imageToStlHref() {
 }
 
 export default function Header() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); // account dropdown
+  const nav = useNavigate();
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   // lock page scroll when mobile menu is open
   useEffect(() => {
@@ -52,18 +56,32 @@ export default function Header() {
     };
   }, [isMenuOpen]);
 
+  // close account dropdown on outside click
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!dropdownRef.current) return;
+      if (!dropdownRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    if (menuOpen) document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [menuOpen]);
+
   const closeMenu = () => setIsMenuOpen(false);
 
   const navItemClasses =
     "px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 " +
     "text-gray-700 hover:text-[#8B684B] hover:bg-[#F3E7DA]";
 
+  const bronzeBtn = {
+    backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`,
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/75 backdrop-blur-lg">
       <div className="max-w-6xl mx-auto px-4">
         <div className="relative flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" onClick={closeMenu} className="text-2xl font-bold tracking-tight">
+          <Link to="/" onClick={() => { closeMenu(); setMenuOpen(false); }} className="text-2xl font-bold tracking-tight">
             <span className="text-gray-900">Printing</span>
             <span className="ml-0.5 text-[#A47C5B]">Muse</span>
           </Link>
@@ -91,6 +109,7 @@ export default function Header() {
 
           {/* Right actions */}
           <div className="flex items-center gap-4">
+            {/* Cart */}
             {SHOP_BASE ? (
               <a
                 href={cartHref()}
@@ -109,36 +128,88 @@ export default function Header() {
               </Link>
             )}
 
-            {user ? (
-              <div className="text-sm font-medium text-gray-700">Hi, {user.name}</div>
-            ) : SHOP_BASE ? (
-              <a
-                href={loginHref()}
-                className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-all ring-1 ring-[#E8DCCD]"
-                style={{ backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)` }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE_DEEP} 0%, ${BRONZE_DEEP} 100%)`)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`)
-                }
-              >
-                Login
-              </a>
+            {/* Auth actions */}
+            {!user ? (
+              // Logged out: show Login + Sign up
+              <div className="hidden sm:flex items-center gap-2">
+                {SHOP_BASE ? (
+                  <>
+                    <a
+                      href={loginHref()}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-all ring-1 ring-[#E8DCCD]"
+                      style={bronzeBtn}
+                    >
+                      Login
+                    </a>
+                    <a
+                      href={registerHref()}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg text-[#8B684B] ring-1 ring-[#E8DCCD] hover:bg-[#F3E7DA]"
+                    >
+                      Sign up
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      to={loginHref()}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-all ring-1 ring-[#E8DCCD]"
+                      style={bronzeBtn}
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      to={registerHref()}
+                      className="px-4 py-2 text-sm font-semibold rounded-lg text-[#8B684B] ring-1 ring-[#E8DCCD] hover:bg-[#F3E7DA]"
+                    >
+                      Sign up
+                    </Link>
+                  </>
+                )}
+              </div>
             ) : (
-              <Link
-                to={loginHref()}
-                className="hidden sm:inline-block px-4 py-2 text-sm font-semibold rounded-lg text-white shadow-sm transition-all ring-1 ring-[#E8DCCD]"
-                style={{ backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)` }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE_DEEP} 0%, ${BRONZE_DEEP} 100%)`)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundImage = `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`)
-                }
-              >
-                Login
-              </Link>
+              // Logged in: Account dropdown
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="px-3 py-1.5 rounded border hover:bg-gray-50 text-sm font-medium text-gray-700"
+                >
+                  Hi, {user.name?.split(" ")[0] || "Account"}
+                </button>
+
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg border bg-white shadow-lg overflow-hidden z-50">
+                    <Link
+                      to="/account"
+                      className="block px-3 py-2 hover:bg-gray-50"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Account
+                    </Link>
+
+                    {(user.role === "seller" || user.role === "admin") && (
+                      <Link
+                        to="/dashboard"
+                        className="block px-3 py-2 hover:bg-gray-50"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        Dashboard
+                      </Link>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem("token");
+                        setUser(null);
+                        setMenuOpen(false);
+                        nav("/");
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Mobile menu button */}
@@ -185,24 +256,65 @@ export default function Header() {
             </Link>
 
             <div className="border-t pt-4 mt-2">
-              {user ? null : SHOP_BASE ? (
-                <a
-                  href={loginHref()}
-                  onClick={closeMenu}
-                  className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white ring-1 ring-[#E8DCCD]"
-                  style={{ backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)` }}
-                >
-                  Login
-                </a>
+              {!user ? (
+                <>
+                  {SHOP_BASE ? (
+                    <>
+                      <a
+                        href={loginHref()}
+                        onClick={closeMenu}
+                        className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white ring-1 ring-[#E8DCCD] mb-2"
+                        style={bronzeBtn}
+                      >
+                        Login
+                      </a>
+                      <a
+                        href={registerHref()}
+                        onClick={closeMenu}
+                        className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-[#8B684B] ring-1 ring-[#E8DCCD]"
+                      >
+                        Sign up
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        to={loginHref()}
+                        onClick={closeMenu}
+                        className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white ring-1 ring-[#E8DCCD] mb-2"
+                        style={bronzeBtn}
+                      >
+                        Login
+                      </Link>
+                      <Link
+                        to={registerHref()}
+                        onClick={closeMenu}
+                        className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-[#8B684B] ring-1 ring-[#E8DCCD]"
+                      >
+                        Sign up
+                      </Link>
+                    </>
+                  )}
+                </>
               ) : (
-                <Link
-                  to={loginHref()}
-                  onClick={closeMenu}
-                  className="block w-full text-center px-4 py-3 rounded-lg font-semibold text-white ring-1 ring-[#E8DCCD]"
-                  style={{ backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)` }}
-                >
-                  Login
-                </Link>
+                <>
+                  <Link
+                    to="/account"
+                    onClick={closeMenu}
+                    className="block w-full text-center px-4 py-3 rounded-lg font-medium text-gray-700 border mb-2"
+                  >
+                    Account
+                  </Link>
+                  {(user.role === "seller" || user.role === "admin") && (
+                    <Link
+                      to="/dashboard"
+                      onClick={closeMenu}
+                      className="block w-full text-center px-4 py-3 rounded-lg font-medium text-gray-700 border"
+                    >
+                      Dashboard
+                    </Link>
+                  )}
+                </>
               )}
             </div>
           </nav>
