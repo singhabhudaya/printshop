@@ -4,93 +4,115 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
-import mongoose from "mongoose";
-import { httpLogger } from "./utils/logger.js";
-import { registerSwagger } from "./docs/swagger.js";
+import { connectMongo } from "./db";
+import { registerSwagger } from "./docs/swagger";
+import { httpLogger } from "./utils/logger";
 
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 
-/** CORS */
-const origins = (process.env.CORS_ORIGIN || "")
-  .split(",").map(s => s.trim()).filter(Boolean);
+// ----------------------------------
+// 1️⃣ CORS
+// ----------------------------------
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (origins.length === 0 || origins.includes(origin)) return cb(null, true);
-    return cb(new Error(`CORS blocked: ${origin}`));
-  }
-}));
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS blocked: ${origin}`));
+    },
+  })
+);
 
-/** Security & utils */
+// ----------------------------------
+// 2️⃣ Middleware
+// ----------------------------------
 app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(rateLimit({ windowMs: 60_000, limit: 100 }));
 app.use(httpLogger);
 
-/** Static */
+// ----------------------------------
+// 3️⃣ Static + Health routes
+// ----------------------------------
 app.use("/uploads", express.static("uploads"));
 
-/** Root & Health */
 app.get("/", (_req, res) => {
-  res.status(200).json({ name: "Printing Muse API", health: "/api/health", docs: "/api/docs" });
+  res.status(200).json({
+    name: "Printing Muse API",
+    health: "/api/health",
+    docs: "/api/docs",
+  });
 });
-app.get("/api/health", (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
-/** Swagger */
+app.get("/api/health", (_req, res) =>
+  res.json({ ok: true, ts: new Date().toISOString() })
+);
+
+// ----------------------------------
+// 4️⃣ Swagger (optional)
+// ----------------------------------
 registerSwagger(app);
 
-/** Try to mount routes dynamically (skip ones that error due to Prisma) */
-async function safeMount(path: string, mount: string) {
-  try {
-    const mod = await import(path);
-    app.use(mount, mod.default);
-    console.log(`✅ Mounted ${mount} from ${path}`);
-  } catch (e) {
-    console.warn(`⚠️ Skipped ${mount} (${path}) — ${String((e as Error).message).slice(0,120)}...`);
+// ----------------------------------
+// 5️⃣ Route auto-mount
+// ----------------------------------
+async function mountRoutes() {
+  const routes = [
+    ["./routes/auth", "/api/auth"],
+    ["./routes/products", "/api/products"],
+    ["./routes/categories", "/api/categories"],
+    ["./routes/orders", "/api/orders"],
+    ["./routes/sellers", "/api/sellers"],
+    ["./routes/admin", "/api/admin"],
+  ];
+
+  for (const [path, mount] of routes) {
+    try {
+      const mod = await import(path);
+      app.use(mount, mod.default);
+      console.log(`✅ Mounted ${mount}`);
+    } catch (e) {
+      console.warn(`⚠️ Skipped ${mount}: ${(e as Error).message}`);
+    }
   }
 }
 
-async function mountRoutes() {
-  await safeMount("./routes/auth.js", "/api/auth");
-  await safeMount("./routes/products.js", "/api/products");
-  await safeMount("./routes/categories.js", "/api/categories");
-  await safeMount("./routes/orders.js", "/api/orders");
-  await safeMount("./routes/sellers.js", "/api/sellers");
-  await safeMount("./routes/admin.js", "/api/admin");
-}
-
-/** Boot */
+// ----------------------------------
+// 6️⃣ Boot sequence
+// ----------------------------------
 let server: import("http").Server;
 
 async function start() {
-  const uri = process.env.MONGO_URI;
-  if (!uri) {
-    console.error("❌ MONGO_URI missing in .env");
+  try {
+    await connectMongo();
+    await mountRoutes();
+
+    server = app.listen(PORT, () =>
+      console.log(`🚀 API running on port ${PORT}`)
+    );
+  } catch (err) {
+    console.error("❌ Startup failed:", err);
     process.exit(1);
   }
-  mongoose.set("strictQuery", true);
-  await mongoose.connect(uri);
-  console.log("✅ MongoDB connected");
-
-  await mountRoutes();
-
-  server = app.listen(PORT, () => console.log(`🚀 API http://localhost:${PORT}`));
 }
 
-start().catch((e) => {
-  console.error("❌ Startup error:", e);
-  process.exit(1);
-});
+start();
 
-/** Graceful shutdown */
+// ----------------------------------
+// 7️⃣ Graceful shutdown
+// ----------------------------------
 async function shutdown(signal: string) {
+  console.log(`\n${signal} received. Closing...`);
   try {
-    console.log(`\n${signal} received. Closing server...`);
-    if (server) await new Promise<void>((r, j) => server.close(err => err ? j(err) : r()));
-    await mongoose.connection.close();
+    if (server) await new Promise<void>((res, rej) => server.close(err => err ? rej(err) : res()));
+    await import("mongoose").then(m => m.default.connection.close());
     console.log("✅ Clean shutdown");
     process.exit(0);
   } catch (e) {
@@ -98,5 +120,6 @@ async function shutdown(signal: string) {
     process.exit(1);
   }
 }
+
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
