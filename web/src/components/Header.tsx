@@ -2,7 +2,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";
-import { Menu, X, ShoppingCart } from "lucide-react";
+import { Menu, X, Search as SearchIcon } from "lucide-react";
+import CommandPaletteSearch from "./CommandPaletteSearch";
+import { useSearch } from "../state/SearchContext";
 
 /** Set VITE_SHOP_ORIGIN (e.g., https://shop.printingmuse.com) to send header links to Shopify. */
 const SHOP_BASE = import.meta.env.VITE_SHOP_ORIGIN as string | undefined;
@@ -33,9 +35,6 @@ function registerHref() {
   // Shopify signup page is /account/register
   return SHOP_BASE ? `${SHOP_BASE}/account/register` : `/auth/register`;
 }
-function cartHref() {
-  return SHOP_BASE ? `${SHOP_BASE}/cart` : `/cart`;
-}
 // Always internal route for our app page
 function imageToStlHref() {
   return "/image-to-stl";
@@ -46,6 +45,7 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // account dropdown
   const nav = useNavigate();
+  const { setOpen: openSearch } = useSearch();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   // lock page scroll when mobile menu is open
@@ -72,7 +72,7 @@ export default function Header() {
     "px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 " +
     "text-gray-700 hover:text-[#8B684B] hover:bg-[#F3E7DA]";
 
-  const bronzeBtn = {
+  const bronzeBtn: React.CSSProperties = {
     backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`,
   };
 
@@ -81,7 +81,14 @@ export default function Header() {
       <div className="max-w-6xl mx-auto px-4">
         <div className="relative flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" onClick={() => { closeMenu(); setMenuOpen(false); }} className="text-2xl font-bold tracking-tight">
+          <Link
+            to="/"
+            onClick={() => {
+              closeMenu();
+              setMenuOpen(false);
+            }}
+            className="text-2xl font-bold tracking-tight"
+          >
             <span className="text-gray-900">Printing</span>
             <span className="ml-0.5 text-[#A47C5B]">Muse</span>
           </Link>
@@ -109,24 +116,22 @@ export default function Header() {
 
           {/* Right actions */}
           <div className="flex items-center gap-4">
-            {/* Cart */}
-            {SHOP_BASE ? (
-              <a
-                href={cartHref()}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-[#8B684B] transition-colors"
-                aria-label="Cart"
+            {/* Search (desktop) */}
+            <button
+              onClick={() => openSearch(true)}
+              className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border hover:shadow-sm transition"
+              style={{ borderColor: CHAMPAGNE }}
+              aria-label="Search"
+            >
+              <SearchIcon size={16} style={{ color: BRONZE }} />
+              <span className="text-sm">Search</span>
+              <kbd
+                className="ml-1 text-[10px] px-1.5 py-0.5 rounded border hidden lg:inline-block"
+                style={{ borderColor: CHAMPAGNE }}
               >
-                <ShoppingCart size={20} />
-              </a>
-            ) : (
-              <Link
-                to={cartHref()}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-[#8B684B] transition-colors"
-                aria-label="Cart"
-              >
-                <ShoppingCart size={20} />
-              </Link>
-            )}
+                Ctrl K
+              </kbd>
+            </button>
 
             {/* Auth actions */}
             {!user ? (
@@ -211,6 +216,15 @@ export default function Header() {
                 )}
               </div>
             )}
+
+            {/* Mobile search button (NEW) */}
+            <button
+              className="md:hidden p-2 rounded-full hover:bg-gray-100 text-gray-600"
+              aria-label="Search"
+              onClick={() => openSearch(true)}
+            >
+              <SearchIcon size={20} />
+            </button>
 
             {/* Mobile menu button */}
             <button
@@ -320,6 +334,9 @@ export default function Header() {
           </nav>
         </div>
       )}
+
+      {/* Mount the premium command palette once globally */}
+      <CommandPaletteSearch />
     </header>
   );
 }

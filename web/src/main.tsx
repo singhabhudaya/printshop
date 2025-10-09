@@ -18,6 +18,7 @@ import Sellers from "./pages/admin/Sellers";
 import Disputes from "./pages/admin/Disputes";
 import ProtectedRoute from "./state/ProtectedRoute";
 import { AuthProvider } from "./state/AuthContext";
+import { SearchProvider } from "./state/SearchContext"; // ← NEW
 
 // NEW: Account page
 import Account from "./pages/account/Account";
@@ -152,7 +153,9 @@ const router = createBrowserRouter([
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AuthProvider>
-      <RouterProvider router={router} />
+      <SearchProvider>
+        <RouterProvider router={router} />
+      </SearchProvider>
     </AuthProvider>
   </StrictMode>
 );
