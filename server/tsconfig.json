@@ -1,13 +1,18 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "rootDir": "src",
     "outDir": "dist",
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
     "strict": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "express", "express-session"],
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

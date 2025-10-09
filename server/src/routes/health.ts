@@ -1,7 +1,12 @@
 import { Router } from "express";
-import pkg from "../../package.json" with { type: "json" };
+import fs from "fs";
+import path from "path";
 
 const router = Router();
+
+// ✅ Safely read package.json in CommonJS projects
+const pkgPath = path.resolve(__dirname, "../../package.json");
+const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
 
 /**
  * @openapi
