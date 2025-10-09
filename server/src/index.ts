@@ -1,4 +1,3 @@
-// src/index.ts
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -9,14 +8,22 @@ import { connectMongo } from "./db";
 import { registerSwagger } from "./docs/swagger";
 import { httpLogger } from "./utils/logger";
 
+// ⬇️ static route imports (no dynamic import/meta)
+import authRouter from "./routes/auth";
+import productsRouter from "./routes/products";
+import categoriesRouter from "./routes/categories";
+import ordersRouter from "./routes/orders";
+import sellersRouter from "./routes/sellers";
+import adminRouter from "./routes/admin";
+
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 
-// Render/Cloud proxy awareness (needed for correct IPs, cookies, rate limits)
+// Make proxies (Render/Cloudflare) play nice for IPs/cookies/rate limits
 app.set("trust proxy", 1);
 
 // ----------------------------------
-// 1️⃣ CORS (safer + clear logging)
+// 1️⃣ CORS (env-driven + clear logs)
 // ----------------------------------
 const allowedOrigins = (process.env.CORS_ORIGIN || "")
   .split(",")
@@ -28,13 +35,9 @@ console.log("✅ Allowed CORS origins:", allowedOrigins);
 app.use(
   cors({
     origin: (origin, cb) => {
-      // Allow requests without an Origin header (e.g., curl/Postman, same-origin server calls)
+      // allow curl/Postman or server-to-server (no Origin header)
       if (!origin) return cb(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return cb(null, true);
-      }
-
+      if (allowedOrigins.includes(origin)) return cb(null, true);
       console.error(`🚫 CORS blocked request from: ${origin}`);
       cb(new Error(`CORS blocked: ${origin}`));
     },
@@ -45,11 +48,7 @@ app.use(
 // ----------------------------------
 // 2️⃣ Middleware
 // ----------------------------------
-app.use(
-  helmet({
-    // Your API serves JSON; default helmet CSP is fine, but you can tweak if needed.
-  })
-);
+app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(rateLimit({ windowMs: 60_000, limit: 100 }));
@@ -78,43 +77,16 @@ app.get("/api/health", (_req, res) =>
 registerSwagger(app);
 
 // ----------------------------------
-// 5️⃣ Route auto-mount (ESM-safe for dev .ts and prod .js)
+// 5️⃣ Routes (static mounts = bulletproof)
 // ----------------------------------
-// In dev (ts-node/tsx), import.meta.url ends with .ts. In prod, it ends with .js.
-// We use that to pick the right extension and construct ESM-safe URLs.
-const isTsRuntime = import.meta.url.endsWith(".ts");
-const routeExt = isTsRuntime ? ".ts" : ".js";
-
-// Helper to ESM-import a file relative to this module (works in NodeNext)
-async function importRoute(relPathWithExt: string) {
-  const url = new URL(relPathWithExt, import.meta.url).href;
-  return import(url);
-}
-
-async function mountRoutes() {
-  // Keep these relative to THIS file (index.ts / index.js)
-  const routes: Array<{ file: string; mount: string }> = [
-    { file: `./routes/auth${routeExt}`, mount: "/api/auth" },
-    { file: `./routes/products${routeExt}`, mount: "/api/products" },
-    { file: `./routes/categories${routeExt}`, mount: "/api/categories" },
-    { file: `./routes/orders${routeExt}`, mount: "/api/orders" },
-    { file: `./routes/sellers${routeExt}`, mount: "/api/sellers" },
-    { file: `./routes/admin${routeExt}`, mount: "/api/admin" },
-  ];
-
-  for (const { file, mount } of routes) {
-    try {
-      const mod = await importRoute(file);
-      if (!mod?.default) {
-        throw new Error("Module has no default export (router).");
-      }
-      app.use(mount, mod.default);
-      console.log(`✅ Mounted ${mount} ← ${file}`);
-    } catch (e) {
-      console.warn(`⚠️ Skipped ${mount}: ${(e as Error).message}`);
-    }
-  }
-}
+console.log("⛓ Mounting routes...");
+app.use("/api/auth", authRouter);
+app.use("/api/products", productsRouter);
+app.use("/api/categories", categoriesRouter);
+app.use("/api/orders", ordersRouter);
+app.use("/api/sellers", sellersRouter);
+app.use("/api/admin", adminRouter);
+console.log("✅ Routes mounted");
 
 // ----------------------------------
 // 6️⃣ Boot sequence
@@ -124,11 +96,9 @@ let server: import("http").Server;
 async function start() {
   try {
     await connectMongo();
-    await mountRoutes();
-
-    server = app.listen(PORT, () => {
-      console.log(`🚀 API running on port ${PORT}`);
-    });
+    server = app.listen(PORT, () =>
+      console.log(`🚀 API running on port ${PORT}`)
+    );
   } catch (err) {
     console.error("❌ Startup failed:", err);
     process.exit(1);
@@ -143,11 +113,10 @@ start();
 async function shutdown(signal: string) {
   console.log(`\n${signal} received. Closing...`);
   try {
-    if (server) {
+    if (server)
       await new Promise<void>((res, rej) =>
         server.close((err) => (err ? rej(err) : res()))
       );
-    }
     await import("mongoose").then((m) => m.default.connection.close());
     console.log("✅ Clean shutdown");
     process.exit(0);
