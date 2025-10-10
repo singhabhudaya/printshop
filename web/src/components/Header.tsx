@@ -14,7 +14,7 @@ const BRONZE = "#A47C5B";
 const BRONZE_DEEP = "#8B684B";
 const CHAMPAGNE = "#F3E7DA";
 
-type NavItem = { label: string; handle: string };
+/*type NavItem = { label: string; handle: string };
 const navItems: NavItem[] = [
   { handle: "toys", label: "Toys" },
   { handle: "gadgets", label: "Gadgets" },
@@ -22,7 +22,7 @@ const navItems: NavItem[] = [
   { handle: "decor", label: "Decor" },
   { handle: "gifts", label: "Gifts" },
 ];
-
+*/
 function categoryHref(handle: string) {
   return SHOP_BASE
     ? `${SHOP_BASE}/collections/${encodeURIComponent(handle)}`
