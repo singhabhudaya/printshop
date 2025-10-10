@@ -1,5 +1,10 @@
 // src/components/Header.tsx
-import { useState, useEffect, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  type CSSProperties,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";
 import { Menu, X, Search as SearchIcon } from "lucide-react";
@@ -9,20 +14,28 @@ import { useSearch } from "../state/SearchContext";
 /** Set VITE_SHOP_ORIGIN (e.g., https://shop.printingmuse.com) to send header links to Shopify. */
 const SHOP_BASE = import.meta.env.VITE_SHOP_ORIGIN as string | undefined;
 
+/** Toggle category tabs. Hidden by default. Set VITE_ENABLE_CATEGORY_TABS=true to enable later. */
+const ENABLE_CATEGORY_TABS =
+  (import.meta.env.VITE_ENABLE_CATEGORY_TABS ?? "false") === "true";
+
 // Premium palette
 const BRONZE = "#A47C5B";
 const BRONZE_DEEP = "#8B684B";
 const CHAMPAGNE = "#F3E7DA";
 
-/*type NavItem = { label: string; handle: string };
-const navItems: NavItem[] = [
-  { handle: "toys", label: "Toys" },
-  { handle: "gadgets", label: "Gadgets" },
-  { handle: "cosplay", label: "Cosplay" },
-  { handle: "decor", label: "Decor" },
-  { handle: "gifts", label: "Gifts" },
-];
-*/
+type NavItem = { label: string; handle: string };
+
+/** Keep the list here, but only render when ENABLE_CATEGORY_TABS is true. */
+const navItems: NavItem[] = ENABLE_CATEGORY_TABS
+  ? [
+      { handle: "toys", label: "Toys" },
+      { handle: "gadgets", label: "Gadgets" },
+      { handle: "cosplay", label: "Cosplay" },
+      { handle: "decor", label: "Decor" },
+      { handle: "gifts", label: "Gifts" },
+    ]
+  : [];
+
 function categoryHref(handle: string) {
   return SHOP_BASE
     ? `${SHOP_BASE}/collections/${encodeURIComponent(handle)}`
@@ -32,7 +45,6 @@ function loginHref() {
   return SHOP_BASE ? `${SHOP_BASE}/account/login` : `/auth/login`;
 }
 function registerHref() {
-  // Shopify signup page is /account/register
   return SHOP_BASE ? `${SHOP_BASE}/account/register` : `/auth/register`;
 }
 // Always internal route for our app page
@@ -72,7 +84,7 @@ export default function Header() {
     "px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200 " +
     "text-gray-700 hover:text-[#8B684B] hover:bg-[#F3E7DA]";
 
-  const bronzeBtn: React.CSSProperties = {
+  const bronzeBtn: CSSProperties = {
     backgroundImage: `linear-gradient(135deg, ${BRONZE} 0%, ${BRONZE_DEEP} 100%)`,
   };
 
@@ -95,6 +107,7 @@ export default function Header() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex gap-1">
+            {/* Category tabs (currently hidden because navItems is []) */}
             {navItems.map((item) => {
               const href = categoryHref(item.handle);
               return SHOP_BASE ? (
@@ -108,7 +121,7 @@ export default function Header() {
               );
             })}
 
-            {/* NEW: Image → STL link (always internal) */}
+            {/* Always available: Image → STL link */}
             <Link to={imageToStlHref()} className={navItemClasses}>
               Image → STL
             </Link>
@@ -217,7 +230,7 @@ export default function Header() {
               </div>
             )}
 
-            {/* Mobile search button (NEW) */}
+            {/* Mobile search button */}
             <button
               className="md:hidden p-2 rounded-full hover:bg-gray-100 text-gray-600"
               aria-label="Search"
@@ -242,29 +255,51 @@ export default function Header() {
 
       {/* Mobile menu */}
       {isMenuOpen && (
-        <div id="mobile-menu" className="md:hidden fixed inset-0 top-16 z-40 bg-white px-4 py-6">
+        <div
+          id="mobile-menu"
+          className="md:hidden fixed inset-0 top-16 z-40 bg-white px-4 py-6"
+        >
           <nav className="flex flex-col gap-4">
+            {/* Category tabs (currently hidden because navItems is []) */}
             {navItems.map((item) => {
               const href = categoryHref(item.handle);
               const common = "px-4 py-3 text-base font-medium rounded-lg";
-              const style = { backgroundColor: CHAMPAGNE as string, color: BRONZE_DEEP as string };
+              const style = {
+                backgroundColor: CHAMPAGNE as string,
+                color: BRONZE_DEEP as string,
+              };
               return SHOP_BASE ? (
-                <a key={item.handle} href={href} onClick={closeMenu} className={common} style={style}>
+                <a
+                  key={item.handle}
+                  href={href}
+                  onClick={closeMenu}
+                  className={common}
+                  style={style}
+                >
                   {item.label}
                 </a>
               ) : (
-                <Link key={item.handle} to={href} onClick={closeMenu} className={common} style={style}>
+                <Link
+                  key={item.handle}
+                  to={href}
+                  onClick={closeMenu}
+                  className={common}
+                  style={style}
+                >
                   {item.label}
                 </Link>
               );
             })}
 
-            {/* NEW: Image → STL (mobile) */}
+            {/* Always available: Image → STL (mobile) */}
             <Link
               to={imageToStlHref()}
               onClick={closeMenu}
               className="px-4 py-3 text-base font-medium rounded-lg"
-              style={{ backgroundColor: CHAMPAGNE as string, color: BRONZE_DEEP as string }}
+              style={{
+                backgroundColor: CHAMPAGNE as string,
+                color: BRONZE_DEEP as string,
+              }}
             >
               Image → STL
             </Link>
